@@ -1,0 +1,1363 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="52">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>255</ID>
+      <Description>"HMM3 HD 5 RC94 + HOTA 1.6.1 AOB script"</Description>
+      <Options moHideChildren="1"/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>// Game Executable   : h3hota HD.exe
+// Author            : Cs
+// Executable Version: 3.2.0.0
+// Module Version    : 
+// Script Date       : 2020-08-24
+// Created with      : customAOBInjectionTemplates version: 1.3.6
+[ENABLE]
+aobscanmodule(aobPlayerGrabber,h3hota HD.exe,8A 81 ?? ?? 00 00 84 C0 74 ?? B0 01)
+aobscanmodule(aobHeroMovePtsOffset,h3hota HD.exe,89 47 ?? 89 47 ?? A1 ?? ?? ?? ?? 46)
+aobscanmodule(aobHeroPtrMath,h3hota HD.exe,A1 ?? ?? ?? ?? 8B 48 ?? 83 F9 ?? 0F 84 ?? ?? 00 00 8B C1 C1 E0 ?? 03 C1 8B 0D ?? ?? ?? ?? 8D 04 C0 8D 9C 41 ?? ?? ?? ?? 85)
+aobscanmodule(aobStackLossCalc,h3hota HD.exe,8B 9E ?? ?? 00 00 03 C8 8B C1 99 F7 FB)
+aobscanmodule(aobStackSideOffset,h3hota HD.exe,8B 86 ?? ?? 00 00 3B C1 0F 84 ?? ?? 00 00 8B 46)
+aobscanmodule(aobHasBuiltThisTurn,h3hota HD.exe,8A 51 ?? 84 D2 74 ?? 40)
+
+alloc(newmemPlayerGrabber,4096,aobPlayerGrabber)
+
+label(aobPlayerGrabber_r)
+label(aobPlayerGrabber_i)
+registersymbol(aobPlayerGrabber_r)
+registersymbol(aobPlayerGrabber_i)
+
+label(lblPlayerGrabber)
+label(lblPlayerGrabberSkip)
+label(lblPlayerGrabberRet)
+
+label(pEnableInfiniteMovementPts)
+registersymbol(pEnableInfiniteMovementPts)
+
+label(pPlayer)
+label(pPlayerCurrentHero)
+registersymbol(pPlayer)
+registersymbol(pPlayerCurrentHero)
+
+label(iHeroMovePtsOffsets)
+registersymbol(iHeroMovePtsOffsets)
+
+label(aobStackLossCalc_r)
+label(aobStackLossCalc_i)
+registersymbol(aobStackLossCalc_r)
+registersymbol(aobStackLossCalc_i)
+
+label(lblStackLossCalc)
+label(lblStackLossCalcSkip)
+label(lblStackLossCalcRet)
+
+label(bEnableGodMode)
+registersymbol(bEnableGodMode)
+
+label(iStackSideOffset)
+registersymbol(iStackSideOffset)
+
+label(aobHasBuiltThisTurn_r)
+label(aobHasBuiltThisTurn_i)
+registersymbol(aobHasBuiltThisTurn_r)
+registersymbol(aobHasBuiltThisTurn_i)
+
+label(lblHasBuiltThisTurn)
+label(lblHasBuiltThisTurnSkip)
+label(lblHasBuiltThisTurnRet)
+
+label(bEnableInfiniteBuild)
+registersymbol(bEnableInfiniteBuild)
+
+newmemPlayerGrabber:
+bEnableGodMode:
+dd 1
+pEnableInfiniteMovementPts:
+dd 1
+bEnableInfiniteBuild:
+dd 1
+
+lblPlayerGrabber:
+pushad
+readmem(aobPlayerGrabber,6)
+test al,al
+jz short lblPlayerGrabberSkip
+mov dword ptr [pPlayer],ecx
+reassemble(aobHeroPtrMath)
+reassemble(aobHeroPtrMath+5)
+reassemble(aobHeroPtrMath+8)
+je short lblPlayerGrabberSkip
+reassemble(aobHeroPtrMath+11)
+reassemble(aobHeroPtrMath+13)
+reassemble(aobHeroPtrMath+16)
+reassemble(aobHeroPtrMath+18)
+reassemble(aobHeroPtrMath+1E)
+reassemble(aobHeroPtrMath+21)
+reassemble(aobHeroPtrMath+28)
+je short lblPlayerGrabberSkip
+mov dword ptr [pPlayerCurrentHero],ebx
+cmp dword ptr [pEnableInfiniteMovementPts],1
+jne short lblPlayerGrabberSkip
+mov eax,[iHeroMovePtsOffsets+04]
+mov ecx,[eax+ebx]
+mov eax,[iHeroMovePtsOffsets]
+mov [eax+ebx],ecx
+lblPlayerGrabberSkip:
+popad
+readmem(aobPlayerGrabber,6)
+jmp lblPlayerGrabberRet
+aobPlayerGrabber_i:
+readmem(aobPlayerGrabber,6)
+pPlayer:
+dd 0
+pPlayerCurrentHero:
+dd 0
+iHeroMovePtsOffsets:
+readmem(aobHeroMovePtsOffset+02,1)
+db 00 00 00
+readmem(aobHeroMovePtsOffset+05,1)
+dd 0
+
+lblStackLossCalc:
+mov ebx,[iStackSideOffset]
+cmp dword ptr [esi+ebx],0
+jne short lblStackLossCalcSkip
+cmp dword ptr [bEnableGodMode],1
+jne short lblStackLossCalcSkip
+xor eax,eax
+xor ecx,ecx
+lblStackLossCalcSkip:
+readmem(aobStackLossCalc,6)
+jmp lblStackLossCalcRet
+aobStackLossCalc_i:
+readmem(aobStackLossCalc,6)
+iStackSideOffset:
+readmem(aobStackSideOffset+02,4)
+
+lblHasBuiltThisTurn:
+cmp dword ptr [bEnableInfiniteBuild],1
+jne short lblHasBuiltThisTurnSkip
+pushad
+push 11
+call GetAsyncKeyState
+shr ax,#15
+cmp ax,1
+popad
+jne short lblHasBuiltThisTurnSkip
+mov byte ptr [ecx+02],0
+lblHasBuiltThisTurnSkip:
+readmem(aobHasBuiltThisTurn,5)
+jmp lblHasBuiltThisTurnRet
+aobHasBuiltThisTurn_i:
+readmem(aobHasBuiltThisTurn,5)
+
+aobHasBuiltThisTurn:
+aobHasBuiltThisTurn_r:
+jmp lblHasBuiltThisTurn
+lblHasBuiltThisTurnRet:
+
+aobStackLossCalc:
+aobStackLossCalc_r:
+jmp lblStackLossCalc
+nop
+lblStackLossCalcRet:
+
+aobPlayerGrabber:
+aobPlayerGrabber_r:
+jmp lblPlayerGrabber
+nop
+lblPlayerGrabberRet:
+
+[DISABLE]
+aobPlayerGrabber_r:
+readmem(aobPlayerGrabber_i,6)
+
+unregistersymbol(aobPlayerGrabber_r)
+unregistersymbol(aobPlayerGrabber_i)
+
+unregistersymbol(pEnableInfiniteMovementPts)
+
+unregistersymbol(pPlayer)
+unregistersymbol(pPlayerCurrentHero)
+
+unregistersymbol(iHeroMovePtsOffsets)
+
+aobStackLossCalc_r:
+readmem(aobStackLossCalc_i,6)
+
+unregistersymbol(aobStackLossCalc_r)
+unregistersymbol(aobStackLossCalc_i)
+
+unregistersymbol(bEnableGodMode)
+
+unregistersymbol(iStackSideOffset)
+
+aobHasBuiltThisTurn_r:
+readmem(aobHasBuiltThisTurn_i,5)
+
+unregistersymbol(aobHasBuiltThisTurn_r)
+unregistersymbol(aobHasBuiltThisTurn_i)
+
+unregistersymbol(bEnableInfiniteBuild)
+
+dealloc(newmemPlayerGrabber)
+
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>325</ID>
+          <Description>"bEnableGodMode"</Description>
+          <DropDownList ReadOnly="1" DescriptionOnly="1" DisplayValueAsItem="1">0:Disabled
+1:Enabled
+</DropDownList>
+          <Color>008000</Color>
+          <VariableType>4 Bytes</VariableType>
+          <Address>bEnableGodMode</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>323</ID>
+          <Description>"pEnableInfiniteMovementPts"</Description>
+          <DropDownList ReadOnly="1" DescriptionOnly="1" DisplayValueAsItem="1">0:Disabled
+1:Enabled
+</DropDownList>
+          <Color>008000</Color>
+          <VariableType>4 Bytes</VariableType>
+          <Address>pEnableInfiniteMovementPts</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>326</ID>
+          <Description>"bEnableInfiniteBuild (hold CTRL for actual effect)"</Description>
+          <DropDownList ReadOnly="1" DescriptionOnly="1" DisplayValueAsItem="1">0:Disabled
+1:Enabled
+</DropDownList>
+          <Color>008000</Color>
+          <VariableType>4 Bytes</VariableType>
+          <Address>bEnableInfiniteBuild</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>324</ID>
+          <Description>"Resources"</Description>
+          <Options moHideChildren="1"/>
+          <Color>4080FF</Color>
+          <GroupHeader>1</GroupHeader>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>263</ID>
+              <Description>"iWood"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>9C</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>264</ID>
+              <Description>"iMercury"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>A0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>265</ID>
+              <Description>"iStone"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>A4</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>266</ID>
+              <Description>"iSulfur"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>A8</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>267</ID>
+              <Description>"iCrystal"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>AC</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>268</ID>
+              <Description>"iGems"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>B0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>269</ID>
+              <Description>"iGold"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>pPlayer</Address>
+              <Offsets>
+                <Offset>B4</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>270</ID>
+          <Description>"CurrentHero"</Description>
+          <Color>4080FF</Color>
+          <GroupHeader>1</GroupHeader>
+          <Address>[pPlayerCurrentHero]</Address>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>271</ID>
+              <Description>"sName"</Description>
+              <Color>0000FF</Color>
+              <VariableType>String</VariableType>
+              <Length>16</Length>
+              <Unicode>0</Unicode>
+              <CodePage>0</CodePage>
+              <ZeroTerminate>1</ZeroTerminate>
+              <Address>+23</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>272</ID>
+              <Description>"iXPLevel"</Description>
+              <Color>FF0000</Color>
+              <VariableType>2 Bytes</VariableType>
+              <Address>+55</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>273</ID>
+              <Description>"iXP"</Description>
+              <Color>FF0000</Color>
+              <VariableType>4 Bytes</VariableType>
+              <Address>+51</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>274</ID>
+              <Description>"iAttack"</Description>
+              <Color>FF0000</Color>
+              <VariableType>Byte</VariableType>
+              <Address>+476</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>275</ID>
+              <Description>"iDefense"</Description>
+              <Color>FF0000</Color>
+              <VariableType>Byte</VariableType>
+              <Address>+477</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>276</ID>
+              <Description>"iPower"</Description>
+              <Color>FF0000</Color>
+              <VariableType>Byte</VariableType>
+              <Address>+478</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>277</ID>
+              <Description>"iKnowlegde"</Description>
+              <Color>FF0000</Color>
+              <VariableType>Byte</VariableType>
+              <Address>+479</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>278</ID>
+              <Description>"iMaxMovementPts"</Description>
+              <Color>FF0000</Color>
+              <VariableType>2 Bytes</VariableType>
+              <Address>+49</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>279</ID>
+              <Description>"iCurrentMovementPts"</Description>
+              <Color>FF0000</Color>
+              <VariableType>2 Bytes</VariableType>
+              <Address>+4d</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>280</ID>
+              <Description>"Items"</Description>
+              <Options moHideChildren="1"/>
+              <Color>4080FF</Color>
+              <GroupHeader>1</GroupHeader>
+              <Address>+1d4</Address>
+              <CheatEntries>
+                <CheatEntry>
+                  <ID>281</ID>
+                  <Description>"iItem[0]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+0</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>282</ID>
+                      <Description>"iSpell[0]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>283</ID>
+                  <Description>"iItem[1]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+8</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>284</ID>
+                      <Description>"iSpell[1]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>285</ID>
+                  <Description>"iItem[2]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+10</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>286</ID>
+                      <Description>"iSpell[2]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>287</ID>
+                  <Description>"iItem[3]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+18</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>288</ID>
+                      <Description>"iSpell[3]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>289</ID>
+                  <Description>"iItem[4]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+20</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>290</ID>
+                      <Description>"iSpell[4]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>291</ID>
+                  <Description>"iItem[5]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+28</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>292</ID>
+                      <Description>"iSpell[5]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>293</ID>
+                  <Description>"iItem[6]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+30</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>294</ID>
+                      <Description>"iSpell[6]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>295</ID>
+                  <Description>"iItem[7]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+38</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>296</ID>
+                      <Description>"iSpell[7]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>297</ID>
+                  <Description>"iItem[8]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+40</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>298</ID>
+                      <Description>"iSpell[8]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>299</ID>
+                  <Description>"iItem[9]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+48</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>300</ID>
+                      <Description>"iSpell[9]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>301</ID>
+                  <Description>"iItem[10]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+50</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>302</ID>
+                      <Description>"iSpell[10]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>303</ID>
+                  <Description>"iItem[11]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+58</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>304</ID>
+                      <Description>"iSpell[11]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>305</ID>
+                  <Description>"iItem[12]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+60</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>306</ID>
+                      <Description>"iSpell[12]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>307</ID>
+                  <Description>"iItem[13]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+68</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>308</ID>
+                      <Description>"iSpell[13]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>309</ID>
+                  <Description>"iItem[14]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+70</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>310</ID>
+                      <Description>"iSpell[14]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>311</ID>
+                  <Description>"iItem[15]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+78</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>312</ID>
+                      <Description>"iSpell[15]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>313</ID>
+                  <Description>"iItem[16]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+80</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>314</ID>
+                      <Description>"iSpell[16]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>315</ID>
+                  <Description>"iItem[17]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+88</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>316</ID>
+                      <Description>"iSpell[17]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>317</ID>
+                  <Description>"iItem[18]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+90</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>318</ID>
+                      <Description>"iSpell[18]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>319</ID>
+                  <Description>"iItem[19]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+98</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>320</ID>
+                      <Description>"iSpell[19]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>321</ID>
+                  <Description>"iItem[20]"</Description>
+                  <DropDownListLink>iItemList</DropDownListLink>
+                  <Color>FF0000</Color>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>+A0</Address>
+                  <CheatEntries>
+                    <CheatEntry>
+                      <ID>322</ID>
+                      <Description>"iSpell[20]"</Description>
+                      <DropDownListLink>iSpellList</DropDownListLink>
+                      <Color>FF0000</Color>
+                      <VariableType>4 Bytes</VariableType>
+                      <Address>+4</Address>
+                    </CheatEntry>
+                  </CheatEntries>
+                </CheatEntry>
+              </CheatEntries>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>185</ID>
+      <Description>"--Game Data--"</Description>
+      <Options moHideChildren="1"/>
+      <Color>808080</Color>
+      <GroupHeader>1</GroupHeader>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>186</ID>
+          <Description>"iItemList"</Description>
+          <DropDownList DescriptionOnly="1" DisplayValueAsItem="1">1:Spell Scroll↓↓↓
+7:Centaur's Axe
+8:Blackshard of the Dead Knight
+9:Greater Gnoll's Flail
+10:Ogre's Club of Havoc
+11:Sword of Hellfire
+12:Titan's Gladius
+13:Shield of the Dwarven Lords
+14:Shield of the Yawning Dead
+15:Buckler of the Gnoll King
+16:Targ of the Rampaging Ogre
+17:Shield of the Damned
+18:Sentinel's Shield
+19:Helm of the Alabaster Unicorn
+20:Skull Helmet
+21:Helm of Chaos
+22:Crown of the Supreme Magi
+23:Hellstorm Helmet
+24:Thunder Helmet
+25:Breastplate of Petrified Wood
+26:Rib Cage
+27:Scales of the Greater Basilisk
+28:Tunic of the Cyclops King
+29:Breastplate of Brimstone
+30:Titan's Cuirass
+31:Armor of Wonder
+32:Sandals of the Saint
+33:Celestial Necklace of Bliss
+34:Lion's Shield of Courage
+35:Sword of Judgement
+36:Helm of Heavenly Enlightenment
+37:Quiet Eye of the Dragon
+38:Red Dragon Flame Tongue
+39:Dragon Scale Shield
+40:Dragon Scale Armor
+41:Dragonbone Greaves
+42:Dragon Wing Tabard
+43:Necklace of Dragonteeth
+44:Crown of Dragontooth
+45:Still Eye of the Dragon
+46:Clover of Fortune
+47:Cards of Prophecy
+48:Ladybird of Luck
+49:Badge of Courage
+50:Crest of Valor
+51:Glyph of Gallantry
+52:Speculum
+53:Spyglass
+54:Amulet of the Undertaker
+55:Vampire's Cowl
+56:Dead Man's Boots
+57:Garniture of Interference
+58:Surcoat of Counterpoise
+59:Boots of Polarity
+60:Bow of Elven Cherrywood
+61:Bowstring of the Unicorn's Mane
+62:Angel Feather Arrows
+63:Bird of Perception
+64:Stoic Watchman
+65:Emblem of Cognizance
+66:Stateman's Medal
+67:Diplomat's Ring
+68:Ambassador's Sash
+69:Ring of the Wayfarer
+70:Equestrian's Gloves
+71:Necklace of Ocean Guidance
+72:Angel Wings
+73:Charm of Mana
+74:Talisman of Mana
+75:Mystic Orb of Mana
+76:Collar of Conjuring
+77:Ring of Conjuring
+78:Cape of Conjuring
+79:Orb of Firmament
+80:Orb of Silt
+81:Orb of Tempestuous Fire
+82:Orb of Driving Rain
+83:Recanter's Cloak
+84:Spirit of Oppression
+85:Hourglass of the Evil Hour
+86:Tome of Fire Magic
+87:Tome of Wind Magic
+88:Tome of Water Magic
+89:Tome of Earth Magic
+90:Boots of Levitation
+91:Golden Bow
+92:Sphere of Permanence
+93:Orb of Vulnerability
+94:Ring of Vitality
+95:Ring of Life
+96:Vial of Lifeblood
+97:Necklace of Swiftness
+98:Boots of Speed
+99:Cape of Velocity
+100:Pendant of Dispassion
+101:Pendant of Second Sight
+102:Pendant of Holiness
+103:Pendant of Life
+104:Pendant of Death
+105:Pendant of Free Will
+106:Pendant of Negativity
+107:Pendant of Total Recall
+108:Pendant of Courage
+109:Everflowing Crystal Cloak
+110:Ring of Infinite Gems
+111:Everpouring Vial of Mercury
+112:Inexhaustable Cart of Ore
+113:Eversmoking Ring of Sulfur
+114:Inexhaustable Cart of Lumber
+115:Endless Sack of Gold
+116:Endless Bag of Gold
+117:Endless Purse of Gold
+118:Legs of Legion
+119:Loins of Legion
+120:Torso of Legion
+121:Arms of Legion
+122:Head of Legion
+123:Sea Captain's Hat
+124:Spellbinder's Hat
+125:Shackles of War
+126:Orb of Inhibition
+127:Dragon Blood
+128:Armageddon's Blade
+129:Angelic Alliance
+130:Cloak of the Undead King
+131:Elixir of Life
+132:Armor of the Damned
+133:Statue of Legion
+134:Power of the Dragon Father
+135:Titan's Thunder
+136:Admiral's Hat
+137:Bow of the Sharpshooter
+138:Wizard's Well
+139:Ring of the Magi
+140:Cornucopia
+141:Diplomat's Cloak
+142:Pendant of Reflection
+143:Ironfist of the Ogre
+147:Trident of Dominion
+148:Shield of Naval Glory
+149:Royal Armor of Nix
+150:Crown of the Five Seas
+151:Boots of the Wayfarer
+153:Demon's Horseshoe
+154:Shaman's Puppet
+155:Hideous Mask
+156:Ring of Suppression
+157:Pedant of Downfall
+158:Ring of Oblivion
+159:Cape of Silence
+160:Golden Goose
+161:Horn of the Abyss
+162:Charm of the Eclipse
+163:Seal of Sunset
+164:Plate of Dying Light
+4294967295:---Empty slot---
+</DropDownList>
+          <Color>0000FF</Color>
+          <VariableType>4 Bytes</VariableType>
+          <Address>0</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>187</ID>
+          <Description>"iSpellList"</Description>
+          <DropDownList DescriptionOnly="1" DisplayValueAsItem="1">25:Destroy Undead
+60:Hypnotize
+4294967295:---Not a Spell slot↑↑↑---
+</DropDownList>
+          <Color>0000FF</Color>
+          <VariableType>4 Bytes</VariableType>
+          <Address>0</Address>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+  </CheatEntries>
+  <UserdefinedSymbols/>
+  <Comments>1:Scroll of Hypnotize
+7:Centaur's Axe
+10:Ogre's Club of Havoc
+13:Shield of the Dwarven Lords
+15:Buckler of the Gnoll King
+25:Breastplate of Petrified Wood
+28:Tunic of the Cyclops King
+31:Armor of Wonder
+41:Dragonbone Greaves
+47:Cards of Prophecy
+48:Ladybird of Luck
+49:Badge of Courage
+50:Crest of Valor
+51:Glyph of Gallantry
+53:Spyglass
+54:Amulet of the Undertaker
+56:Dead Man's Boots
+59:Boots of Polarity
+60:Bow of Elven Cherrywood
+61:Bowstring of the Unicorn's Mane
+63:Bird of Perception
+75:Mystic Orb of Mana
+98:Boots of Speed
+102:Pendant of Holiness
+103:Pendant of Life
+107:Pendant of Total Recall
+113:Eversmoking Ring of Sulfur
+125:Shackles of War
+151:Boots of the Wayfarer
+156:Ring of Suppression
+4294967295:---Empty slot---
+</Comments>
+  <LuaScript>-- HotA Trainer UI prototype
+-- Uses symbols exported by the user's existing Cheat Engine table.
+-- Load the CT, enable its main AOB script, then execute this file in CE's Lua engine.
+
+if HotATrainerForm and HotATrainerForm.destroy then
+  pcall(function() HotATrainerForm:destroy() end)
+end
+
+local artifactOptions = {
+  {1, "Spell Scroll↓↓↓"},
+  {7, "Centaur's Axe"},
+  {8, "Blackshard of the Dead Knight"},
+  {9, "Greater Gnoll's Flail"},
+  {10, "Ogre's Club of Havoc"},
+  {11, "Sword of Hellfire"},
+  {12, "Titan's Gladius"},
+  {13, "Shield of the Dwarven Lords"},
+  {14, "Shield of the Yawning Dead"},
+  {15, "Buckler of the Gnoll King"},
+  {16, "Targ of the Rampaging Ogre"},
+  {17, "Shield of the Damned"},
+  {18, "Sentinel's Shield"},
+  {19, "Helm of the Alabaster Unicorn"},
+  {20, "Skull Helmet"},
+  {21, "Helm of Chaos"},
+  {22, "Crown of the Supreme Magi"},
+  {23, "Hellstorm Helmet"},
+  {24, "Thunder Helmet"},
+  {25, "Breastplate of Petrified Wood"},
+  {26, "Rib Cage"},
+  {27, "Scales of the Greater Basilisk"},
+  {28, "Tunic of the Cyclops King"},
+  {29, "Breastplate of Brimstone"},
+  {30, "Titan's Cuirass"},
+  {31, "Armor of Wonder"},
+  {32, "Sandals of the Saint"},
+  {33, "Celestial Necklace of Bliss"},
+  {34, "Lion's Shield of Courage"},
+  {35, "Sword of Judgement"},
+  {36, "Helm of Heavenly Enlightenment"},
+  {37, "Quiet Eye of the Dragon"},
+  {38, "Red Dragon Flame Tongue"},
+  {39, "Dragon Scale Shield"},
+  {40, "Dragon Scale Armor"},
+  {41, "Dragonbone Greaves"},
+  {42, "Dragon Wing Tabard"},
+  {43, "Necklace of Dragonteeth"},
+  {44, "Crown of Dragontooth"},
+  {45, "Still Eye of the Dragon"},
+  {46, "Clover of Fortune"},
+  {47, "Cards of Prophecy"},
+  {48, "Ladybird of Luck"},
+  {49, "Badge of Courage"},
+  {50, "Crest of Valor"},
+  {51, "Glyph of Gallantry"},
+  {52, "Speculum"},
+  {53, "Spyglass"},
+  {54, "Amulet of the Undertaker"},
+  {55, "Vampire's Cowl"},
+  {56, "Dead Man's Boots"},
+  {57, "Garniture of Interference"},
+  {58, "Surcoat of Counterpoise"},
+  {59, "Boots of Polarity"},
+  {60, "Bow of Elven Cherrywood"},
+  {61, "Bowstring of the Unicorn's Mane"},
+  {62, "Angel Feather Arrows"},
+  {63, "Bird of Perception"},
+  {64, "Stoic Watchman"},
+  {65, "Emblem of Cognizance"},
+  {66, "Stateman's Medal"},
+  {67, "Diplomat's Ring"},
+  {68, "Ambassador's Sash"},
+  {69, "Ring of the Wayfarer"},
+  {70, "Equestrian's Gloves"},
+  {71, "Necklace of Ocean Guidance"},
+  {72, "Angel Wings"},
+  {73, "Charm of Mana"},
+  {74, "Talisman of Mana"},
+  {75, "Mystic Orb of Mana"},
+  {76, "Collar of Conjuring"},
+  {77, "Ring of Conjuring"},
+  {78, "Cape of Conjuring"},
+  {79, "Orb of Firmament"},
+  {80, "Orb of Silt"},
+  {81, "Orb of Tempestuous Fire"},
+  {82, "Orb of Driving Rain"},
+  {83, "Recanter's Cloak"},
+  {84, "Spirit of Oppression"},
+  {85, "Hourglass of the Evil Hour"},
+  {86, "Tome of Fire Magic"},
+  {87, "Tome of Wind Magic"},
+  {88, "Tome of Water Magic"},
+  {89, "Tome of Earth Magic"},
+  {90, "Boots of Levitation"},
+  {91, "Golden Bow"},
+  {92, "Sphere of Permanence"},
+  {93, "Orb of Vulnerability"},
+  {94, "Ring of Vitality"},
+  {95, "Ring of Life"},
+  {96, "Vial of Lifeblood"},
+  {97, "Necklace of Swiftness"},
+  {98, "Boots of Speed"},
+  {99, "Cape of Velocity"},
+  {100, "Pendant of Dispassion"},
+  {101, "Pendant of Second Sight"},
+  {102, "Pendant of Holiness"},
+  {103, "Pendant of Life"},
+  {104, "Pendant of Death"},
+  {105, "Pendant of Free Will"},
+  {106, "Pendant of Negativity"},
+  {107, "Pendant of Total Recall"},
+  {108, "Pendant of Courage"},
+  {109, "Everflowing Crystal Cloak"},
+  {110, "Ring of Infinite Gems"},
+  {111, "Everpouring Vial of Mercury"},
+  {112, "Inexhaustable Cart of Ore"},
+  {113, "Eversmoking Ring of Sulfur"},
+  {114, "Inexhaustable Cart of Lumber"},
+  {115, "Endless Sack of Gold"},
+  {116, "Endless Bag of Gold"},
+  {117, "Endless Purse of Gold"},
+  {118, "Legs of Legion"},
+  {119, "Loins of Legion"},
+  {120, "Torso of Legion"},
+  {121, "Arms of Legion"},
+  {122, "Head of Legion"},
+  {123, "Sea Captain's Hat"},
+  {124, "Spellbinder's Hat"},
+  {125, "Shackles of War"},
+  {126, "Orb of Inhibition"},
+  {127, "Dragon Blood"},
+  {128, "Armageddon's Blade"},
+  {129, "Angelic Alliance"},
+  {130, "Cloak of the Undead King"},
+  {131, "Elixir of Life"},
+  {132, "Armor of the Damned"},
+  {133, "Statue of Legion"},
+  {134, "Power of the Dragon Father"},
+  {135, "Titan's Thunder"},
+  {136, "Admiral's Hat"},
+  {137, "Bow of the Sharpshooter"},
+  {138, "Wizard's Well"},
+  {139, "Ring of the Magi"},
+  {140, "Cornucopia"},
+  {141, "Diplomat's Cloak"},
+  {142, "Pendant of Reflection"},
+  {143, "Ironfist of the Ogre"},
+  {147, "Trident of Dominion"},
+  {148, "Shield of Naval Glory"},
+  {149, "Royal Armor of Nix"},
+  {150, "Crown of the Five Seas"},
+  {151, "Boots of the Wayfarer"},
+  {153, "Demon's Horseshoe"},
+  {154, "Shaman's Puppet"},
+  {155, "Hideous Mask"},
+  {156, "Ring of Suppression"},
+  {157, "Pedant of Downfall"},
+  {158, "Ring of Oblivion"},
+  {159, "Cape of Silence"},
+  {160, "Golden Goose"},
+  {161, "Horn of the Abyss"},
+  {162, "Charm of the Eclipse"},
+  {163, "Seal of Sunset"},
+  {164, "Plate of Dying Light"},
+  {4294967295, "---Empty slot---"},
+}
+
+local function symbolAddress(name)
+  local ok, addr = pcall(getAddressSafe, name)
+  if ok then return addr end
+  return nil
+end
+
+local function readPtr(name)
+  local a = symbolAddress(name)
+  if not a then return nil end
+  local ok, v = pcall(readInteger, a)
+  if ok then return v end
+  return nil
+end
+
+local function readAt(addr, kind)
+  if not addr then return nil end
+  local fn = (kind == 'byte' and readBytes) or (kind == 'word' and readSmallInteger) or readInteger
+  local ok, v = pcall(fn, addr)
+  if ok then return v end
+  return nil
+end
+
+local function writeAt(addr, kind, value)
+  if not addr then return false end
+  local fn = (kind == 'byte' and writeBytes) or (kind == 'word' and writeSmallInteger) or writeInteger
+  local ok = pcall(fn, addr, value)
+  return ok
+end
+
+local function num(text)
+  local v = tonumber(text)
+  if not v then return nil end
+  return math.floor(v)
+end
+
+local form = createForm(false)
+HotATrainerForm = form
+form.Caption = 'Heroes III: HotA Trainer'
+form.Width = 780
+form.Height = 590
+form.Position = poScreenCenter
+form.BorderStyle = bsSizeable
+
+local title = createLabel(form)
+title.Caption = 'HORN OF THE ABYSS  |  MAP TESTING TOOL'
+title.Left, title.Top, title.Width, title.Height = 18, 12, 720, 28
+title.Font.Size = 14
+title.Font.Style = '[fsBold]'
+
+local status = createLabel(form)
+status.Caption = 'Waiting for the table script…'
+status.Left, status.Top, status.Width, status.Height = 20, 43, 720, 22
+
+-- Cheat Engine exposes tab pages through createPageControl(), not
+-- createTabControl()/createTabSheet().
+local tabs = createPageControl(form)
+tabs.Left, tabs.Top, tabs.Width, tabs.Height = 16, 75, 735, 455
+local overview = tabs.addTab(); overview.Caption = 'Overview'
+local heroTab = tabs.addTab(); heroTab.Caption = 'Hero'
+local inventoryTab = tabs.addTab(); inventoryTab.Caption = 'Inventory'
+
+local function label(parent, caption, x, y, w)
+  local c = createLabel(parent); c.Caption = caption; c.Left=x; c.Top=y; c.Width=w or 180; c.Height=22; return c
+end
+local function edit(parent, x, y, w)
+  local c = createEdit(parent); c.Left=x; c.Top=y; c.Width=w or 120; c.Height=24; return c
+end
+local function button(parent, caption, x, y, w, callback)
+  local c = createButton(parent); c.Caption=caption; c.Left=x; c.Top=y; c.Width=w or 120; c.Height=28; c.OnClick=callback; return c
+end
+
+-- Overview: toggles and resources
+label(overview, 'GAMEPLAY TOGGLES', 18, 18, 300).Font.Style='[fsBold]'
+local checks = {}
+local function addToggle(caption, symbol, y)
+  local c=createCheckBox(overview); c.Caption=caption; c.Left=22; c.Top=y; c.Width=260; c.Height=24
+  c.OnChange=function(sender)
+    local a=symbolAddress(symbol)
+    if a then writeAt(a, 'int', sender.Checked and 1 or 0) end
+  end
+  checks[symbol]=c
+end
+addToggle('God mode (your army takes no losses)', 'bEnableGodMode', 48)
+addToggle('Infinite hero movement', 'pEnableInfiniteMovementPts', 76)
+addToggle('Infinite town building (hold CTRL)', 'bEnableInfiniteBuild', 104)
+
+label(overview, 'PLAYER RESOURCES', 350, 18, 300).Font.Style='[fsBold]'
+local resourceDefs = {
+  {'Wood',0x9C}, {'Mercury',0xA0}, {'Ore',0xA4}, {'Sulfur',0xA8},
+  {'Crystal',0xAC}, {'Gems',0xB0}, {'Gold',0xB4}
+}
+local resourceEdits={}
+for i,d in ipairs(resourceDefs) do
+  local col = (i &lt;= 4) and 0 or 1
+  local row = (i &lt;= 4) and i or (i-4)
+  local x = 350 + col*175
+  local y = 48 + (row-1)*48
+  label(overview, d[1], x, y, 90)
+  resourceEdits[i] = edit(overview, x+78, y-3, 85)
+end
+local resourceRefresh
+local resourceApply = button(overview, 'Apply resources', 490, 250, 140, function()
+  local p=readPtr('pPlayer'); if not p or p==0 then status.Caption='Player pointer not ready — open a map and select a player.'; return end
+  for i,d in ipairs(resourceDefs) do local v=num(resourceEdits[i].Text); if v then writeAt(p+d[2], 'int', v) end end
+  status.Caption='Resource values written.'
+end)
+
+-- Hero tab
+label(heroTab, 'CURRENTLY SELECTED HERO', 20, 18, 300).Font.Style='[fsBold]'
+local heroFields = {
+  {'Experience',0x51,'int'}, {'Level',0x55,'word'},
+  {'Attack',0x476,'byte'}, {'Defence',0x477,'byte'},
+  {'Spell Power',0x478,'byte'}, {'Knowledge',0x479,'byte'},
+  {'Maximum movement',0x49,'word'}, {'Current movement',0x4D,'word'}
+}
+local heroEdits={}
+for i,d in ipairs(heroFields) do
+  local col=(i&gt;4) and 1 or 0
+  local row=(i-1)%4
+  local x=22+col*330; local y=55+row*55
+  label(heroTab,d[1],x,y,155)
+  heroEdits[i]=edit(heroTab,x+160,y-4,110)
+end
+local heroName=label(heroTab,'Hero pointer: not detected',22,300,650)
+button(heroTab,'Refresh hero',22,340,125,function()
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then heroName.Caption='No current hero pointer. Select a hero in-game first.'; return end
+  heroName.Caption=string.format('Current hero address: 0x%X',h)
+  for i,d in ipairs(heroFields) do local v=readAt(h+d[2],d[3]); heroEdits[i].Text=(v~=nil) and tostring(v) or '' end
+  status.Caption='Hero values refreshed.'
+end)
+button(heroTab,'Apply hero edits',160,340,145,function()
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then status.Caption='No current hero pointer. Select a hero first.'; return end
+  for i,d in ipairs(heroFields) do local v=num(heroEdits[i].Text); if v then writeAt(h+d[2],d[3],v) end end
+  status.Caption='Hero values written.'
+end)
+
+-- Inventory tab: one selected slot at a time; table stores 21 8-byte records.
+label(inventoryTab,'ARTIFACT / AUXILIARY SLOT EDITOR',20,18,400).Font.Style='[fsBold]'
+label(inventoryTab,'Select one of the 21 records, choose an artifact, then apply.',22,45,650)
+label(inventoryTab,'Inventory slot (1–21)',22,90,160)
+local slotCombo=createComboBox(inventoryTab); slotCombo.Left=185; slotCombo.Top=86; slotCombo.Width=150
+for i=1,21 do slotCombo.Items.add('Slot '..i) end
+slotCombo.ItemIndex=0
+label(inventoryTab,'Artifact',22,132,100)
+local artifactCombo=createComboBox(inventoryTab); artifactCombo.Left=185; artifactCombo.Top=128; artifactCombo.Width=430
+for _,v in ipairs(artifactOptions) do artifactCombo.Items.add(string.format('%d: %s',v[1],v[2])) end
+artifactCombo.ItemIndex=0
+label(inventoryTab,'Paired value (raw integer)',22,176,190)
+local pairedEdit=edit(inventoryTab,215,172,120)
+local currentItem=label(inventoryTab,'Current slot: not loaded',22,220,650)
+button(inventoryTab,'Read selected slot',22,260,145,function()
+  local h=readPtr('pPlayerCurrentHero'); if not h or h==0 then status.Caption='Select a hero first.'; return end
+  local slot=slotCombo.ItemIndex; if slot&lt;0 then slot=0 end
+  local a=h+0x1D4+(slot*8)
+  local item=readAt(a,'int'); local paired=readAt(a+4,'int')
+  currentItem.Caption=string.format('Slot %d — artifact ID: %s | paired value: %s',slot+1,tostring(item),tostring(paired))
+  pairedEdit.Text=tostring(paired or 0)
+  for i,v in ipairs(artifactOptions) do if v[1]==item then artifactCombo.ItemIndex=i-1; break end end
+end)
+button(inventoryTab,'Apply selected slot',185,260,155,function()
+  local h=readPtr('pPlayerCurrentHero'); if not h or h==0 then status.Caption='Select a hero first.'; return end
+  local slot=slotCombo.ItemIndex; if slot&lt;0 then slot=0 end
+  local chosen=artifactCombo.ItemIndex+1; local item=artifactOptions[chosen] and artifactOptions[chosen][1]
+  local paired=num(pairedEdit.Text) or 0
+  if item==4294967295 then item=-1 end
+  local a=h+0x1D4+(slot*8)
+  local ok1=writeAt(a,'int',item or 0); local ok2=writeAt(a+4,'int',paired)
+  status.Caption=(ok1 and ok2) and 'Inventory slot written.' or 'Could not write inventory slot.'
+end)
+label(inventoryTab,'Note: the CT exposes 21 paired records. Its dropdown names artifact IDs, while the paired field is kept raw; this is not a full spellbook editor.',22,320,680)
+
+-- Refresh all visible values
+local function refreshAll()
+  local p=readPtr('pPlayer')
+  local h=readPtr('pPlayerCurrentHero')
+  if p and p~=0 then
+    for i,d in ipairs(resourceDefs) do local v=readAt(p+d[2],'int'); resourceEdits[i].Text=(v~=nil) and tostring(v) or '' end
+  end
+  for symbol,c in pairs(checks) do local a=symbolAddress(symbol); if a then c.Checked=(readAt(a,'int') or 0)~=0 end end
+  if h and h~=0 then
+    heroName.Caption=string.format('Current hero address: 0x%X',h)
+    for i,d in ipairs(heroFields) do local v=readAt(h+d[2],d[3]); heroEdits[i].Text=(v~=nil) and tostring(v) or '' end
+  end
+  if (not p or p==0) and (not h or h==0) then status.Caption='Symbols found, but no active player/hero yet. Open a map and select a hero.'
+  else status.Caption='Connected to table symbols. Refresh after changing the selected hero.' end
+end
+
+button(overview,'Refresh all',350,295,130,refreshAll)
+
+form.OnClose=function() HotATrainerForm=nil; return caFree end
+refreshAll()
+form.show()
+</LuaScript>
+</CheatTable>
