@@ -1225,6 +1225,9 @@ tabs.Left, tabs.Top, tabs.Width, tabs.Height = 16, 75, 735, 455
 local overview = tabs.addTab(); overview.Caption = 'Overview'
 local heroTab = tabs.addTab(); heroTab.Caption = 'Hero'
 local inventoryTab = tabs.addTab(); inventoryTab.Caption = 'Inventory'
+local skillsTab = tabs.addTab(); skillsTab.Caption = 'Skills Mastery'
+local skillAdditionTab = tabs.addTab(); skillAdditionTab.Caption = 'Skill Addition'
+local dumpTab = tabs.addTab(); dumpTab.Caption = 'Memory Dump'
 
 local function label(parent, caption, x, y, w)
   local c = createLabel(parent); c.Caption = caption; c.Left=x; c.Top=y; c.Width=w or 180; c.Height=22; return c
@@ -1302,6 +1305,174 @@ button(heroTab,'Apply hero edits',160,340,145,function()
   for i,d in ipairs(heroFields) do local v=num(heroEdits[i].Text); if v then writeAt(h+d[2],d[3],v) end end
   status.Caption='Hero values written.'
 end)
+
+local secondarySkills={
+  'Pathfinding','Archery','Logistics','Scouting','Diplomacy','Navigation','Leadership',
+  'Wisdom','Mysticism','Luck','Ballistics','Eagle Eye','Necromancy','Estates',
+  'Fire Magic','Air Magic','Water Magic','Earth Magic','Scholar','Tactics',
+  'Artillery','Learning','Offense','Armorer','Intelligence','Sorcery',
+  'Resistance','First Aid'
+}
+label(skillsTab,'EDIT MASTERY OF EXISTING SKILLS',20,16,420).Font.Style='[fsBold]'
+label(skillsTab,'Read first. This editor changes mastery only; it does not add, remove, or reorder skills.',22,40,700)
+local skillEdits={}
+for i,name in ipairs(secondarySkills) do
+  local col=(i&gt;14) and 1 or 0
+  local row=(i-1)%14
+  local x=22+col*355
+  local y=68+row*22
+  label(skillsTab,name,x,y,112)
+  local level=createComboBox(skillsTab); level.Left=x+115; level.Top=y-3; level.Width=135
+  level.Items.add('Not learned'); level.Items.add('Basic'); level.Items.add('Advanced'); level.Items.add('Expert')
+  level.ItemIndex=0
+  level.Enabled=false
+  skillEdits[i]=level
+end
+local skillStatus=label(skillsTab,'Read a selected hero before applying. HotA Interference is not mapped here.',22,416,700)
+local skillSnapshot,skillHero={},nil
+local skillReadValid=false
+local applyMasteryButton
+local function readSkills()
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then skillStatus.Caption='Select a hero first.'; return false end
+  local values,valid={},true
+  for i=1,#secondarySkills do
+    local value=readAt(h+0xC9+(i-1),'byte')
+    if value==nil or value&gt;3 then valid=false; value=0 end
+    values[i]=value
+    skillEdits[i].ItemIndex=value
+    skillEdits[i].Enabled=value&gt;0
+  end
+  skillSnapshot,skillHero=values,h
+  skillReadValid=valid
+  applyMasteryButton.Enabled=valid
+  skillStatus.Caption=valid and string.format('Loaded skill levels for hero 0x%X.',h) or
+    'Skill data did not match the supported range; applying is blocked.'
+  return valid
+end
+button(skillsTab,'Read skills',22,380,125,readSkills)
+applyMasteryButton=button(skillsTab,'Apply mastery changes',160,380,175,function()
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then skillStatus.Caption='Select a hero first.'; return end
+  if not skillReadValid or h~=skillHero then
+    skillStatus.Caption='Read the currently selected hero before applying.'
+    applyMasteryButton.Enabled=false
+    return
+  end
+  local changes={}
+  for i=1,#secondarySkills do
+    local before=skillSnapshot[i]
+    local after=skillEdits[i].ItemIndex
+    if before==0 and after~=0 then
+      skillStatus.Caption='Adding skills is disabled; only existing skill mastery can be changed.'
+      return
+    elseif before&gt;0 and (after&lt;1 or after&gt;3) then
+      skillStatus.Caption='Removing skills is disabled; keep each existing skill at Basic, Advanced, or Expert.'
+      return
+    elseif before&gt;0 and after~=before then
+      changes[#changes+1]={id=i-1,level=after}
+    end
+  end
+  for _,change in ipairs(changes) do
+    if not writeAt(h+0xC9+change.id,'byte',change.level) then
+      skillStatus.Caption='A mastery write failed. Refresh the hero before continuing.'
+      skillReadValid=false; applyMasteryButton.Enabled=false
+      return
+    end
+  end
+  readSkills()
+  skillStatus.Caption=string.format('Updated mastery for %d existing skill(s).',#changes)
+end)
+applyMasteryButton.Enabled=false
+
+-- Experimental addition: mirror the observed natural-gain data changes.
+-- Adds exactly one previously unlearned skill at Basic mastery per click.
+label(skillAdditionTab,'EXPERIMENTAL SKILL ADDITION (WIP)',20,16,460).Font.Style='[fsBold]'
+label(skillAdditionTab,'Test on a copied save. Adds one unlearned skill as Basic and increments the hero skill count.',22,42,700)
+label(skillAdditionTab,'Select a hero, read its current skills, then add one skill at a time.',22,68,700)
+local addSkillCombo=createComboBox(skillAdditionTab)
+addSkillCombo.Left,addSkillCombo.Top,addSkillCombo.Width=22,110,220
+for _,name in ipairs(secondarySkills) do addSkillCombo.Items.add(name) end
+addSkillCombo.ItemIndex=-1
+local additionStatus=label(skillAdditionTab,'No hero read yet.',260,114,450)
+local additionSnapshot,additionHero,additionCount={},nil,nil
+local additionReadValid=false
+local function readAdditionSkills()
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then additionStatus.Caption='Select a hero first.'; return false end
+  local values,valid={},true
+  for i=1,#secondarySkills do
+    local value=readAt(h+0xC9+(i-1),'byte')
+    if value==nil or value&gt;3 then valid=false end
+    values[i]=value
+  end
+  local count=readAt(h+0x101,'byte')
+  local learned=0
+  for _,value in ipairs(values) do if value and value>0 then learned=learned+1 end end
+  if count==nil or count&lt;0 or count&gt;8 or count~=learned then valid=false end
+  additionSnapshot,additionHero,additionCount=values,h,count
+  additionReadValid=valid
+  additionStatus.Caption=valid and string.format('Hero 0x%X: %d of 8 secondary skills.',h,count) or
+    'Skill levels/count failed validation; addition is blocked.'
+  return valid
+end
+button(skillAdditionTab,'Read selected hero',22,158,160,readAdditionSkills)
+button(skillAdditionTab,'Add selected skill (Basic)',195,158,190,function()
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then additionStatus.Caption='Select a hero first.'; return end
+  if not additionReadValid or h~=additionHero then
+    additionStatus.Caption='Read the currently selected hero before adding.'
+    additionReadValid=false
+    return
+  end
+  local skillId=addSkillCombo.ItemIndex
+  if skillId&lt;0 or skillId&gt;=#secondarySkills then additionStatus.Caption='Choose a skill first.'; return end
+  if additionSnapshot[skillId+1]>0 then additionStatus.Caption='That skill is already learned; nothing was written.'; return end
+  if additionCount>=8 then additionStatus.Caption='Hero already has the maximum of 8 secondary skills.'; return end
+  -- Match the observed natural gain: set the new skill to Basic, then increment count.
+  if not writeAt(h+0xC9+skillId,'byte',1) then additionStatus.Caption='Could not write the new skill level.'; additionReadValid=false; return end
+  if not writeAt(h+0x101,'byte',additionCount+1) then
+    additionStatus.Caption='Skill level was written but count failed. Re-read before any further change.'
+    additionReadValid=false
+    return
+  end
+  additionReadValid=false
+  readAdditionSkills()
+  additionStatus.Caption=string.format('Added Basic %s. Inspect the hero screen, then save/reload to verify.',secondarySkills[skillId+1])
+end)
+label(skillAdditionTab,'WIP scope: writes the observed skill-level byte and +0x101 count only. It does not call the game\'s skill-gain routine or assign mastery above Basic.',22,220,690)
+
+-- Read-only hero dumps for comparing HotA memory before and after game actions.
+label(dumpTab,'HERO MEMORY DUMP',20,16,400).Font.Style='[fsBold]'
+label(dumpTab,'Select the hero first. These buttons only read memory.',22,40,650)
+local dumpMemo=createMemo(dumpTab)
+dumpMemo.Left,dumpMemo.Top,dumpMemo.Width,dumpMemo.Height=22,68,680,310
+dumpMemo.ReadOnly=true
+dumpMemo.ScrollBars=ssVertical
+dumpMemo.Lines.Text='No dump yet.'
+local dumpStatus=label(dumpTab,'Read-only diagnostic.',400,402,300)
+local function dumpHeroBytes(startOffset,endOffset)
+  local h=readPtr('pPlayerCurrentHero')
+  if not h or h==0 then
+    dumpMemo.Lines.Text='No selected hero pointer.'
+    dumpStatus.Caption='Select a hero in-game, then retry.'
+    return false
+  end
+  local lines={string.format('Hero=0x%X; range=+0x%03X..+0x%03X',h,startOffset,endOffset)}
+  for rowStart=startOffset,endOffset,16 do
+    local parts={string.format('+%03X:',rowStart)}
+    for offset=rowStart,math.min(rowStart+15,endOffset) do
+      local value=readAt(h+offset,'byte')
+      parts[#parts+1]=value and string.format('%02X',value) or '??'
+    end
+    lines[#lines+1]=table.concat(parts,' ')
+  end
+  dumpMemo.Lines.Text=table.concat(lines,'\r\n')
+  dumpStatus.Caption=string.format('Read %d bytes from hero at 0x%X.',endOffset-startOffset+1,h)
+  return true
+end
+button(dumpTab,'Dump skill area',22,397,150,function() dumpHeroBytes(0xB0,0x130) end)
+button(dumpTab,'Dump full hero record',185,397,190,function() dumpHeroBytes(0x000,0x491) end)
 
 -- Inventory tab: one selected slot at a time; table stores 21 8-byte records.
 label(inventoryTab,'ARTIFACT / AUXILIARY SLOT EDITOR',20,18,400).Font.Style='[fsBold]'
