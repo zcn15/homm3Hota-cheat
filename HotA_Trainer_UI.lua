@@ -385,11 +385,12 @@ applyMasteryButton=button(skillsTab,'Apply mastery changes',160,380,175,function
 end)
 applyMasteryButton.Enabled=false
 
--- Experimental addition: mirror the observed natural-gain data changes.
--- Adds exactly one previously unlearned skill at Basic mastery per click.
-label(skillAdditionTab,'EXPERIMENTAL SKILL ADDITION (WIP)',20,16,460).Font.Style='[fsBold]'
-label(skillAdditionTab,'Test on a copied save. Adds one unlearned skill as Basic and increments the hero skill count.',22,42,700)
-label(skillAdditionTab,'Select a hero, read its current skills, then add one skill at a time.',22,68,700)
+-- HotA's original table marks the vanilla +E5 skill order as unused.
+-- Direct level/count writes crashed the hero screen, so this tab is read-only
+-- until HotA's runtime skill list behavior is mapped.
+label(skillAdditionTab,'SKILL ADDITION (HOTa MAPPING IN PROGRESS)',20,16,500).Font.Style='[fsBold]'
+label(skillAdditionTab,'The HotA table marks the vanilla +0xE5 skill-order bytes as unused. Direct level/count additions crashed the hero screen.',22,42,700)
+label(skillAdditionTab,'Read current skill data here. Addition stays locked while we inspect HotA\'s runtime skill-order list.',22,68,700)
 local addSkillCombo=createComboBox(skillAdditionTab)
 addSkillCombo.Left,addSkillCombo.Top,addSkillCombo.Width=22,110,220
 for _,name in ipairs(secondarySkills) do addSkillCombo.Items.add(name) end
@@ -408,43 +409,26 @@ local function readAdditionSkills()
   end
   local count=readAt(h+0x101,'byte')
   local learned=0
-  for _,value in ipairs(values) do if value and value>0 then learned=learned+1 end end
-  if count==nil or count<0 or count>8 or count~=learned then valid=false end
+  for id,value in ipairs(values) do
+    if value and value>0 then learned=learned+1 end
+  end
+  if count==nil or count>28 or count~=learned then valid=false end
   additionSnapshot,additionHero,additionCount=values,h,count
   additionReadValid=valid
-  additionStatus.Caption=valid and string.format('Hero 0x%X: %d of 8 secondary skills.',h,count) or
-    'Skill levels/count failed validation; addition is blocked.'
+  additionStatus.Caption=valid and string.format('Hero 0x%X: %d learned skills; levels and count agree.',h,count) or
+    'Skill levels/count did not validate; addition is unavailable.'
   return valid
 end
 button(skillAdditionTab,'Read selected hero',22,158,160,readAdditionSkills)
-button(skillAdditionTab,'Add selected skill (Basic)',195,158,190,function()
-  local h=readPtr('pPlayerCurrentHero')
-  if not h or h==0 then additionStatus.Caption='Select a hero first.'; return end
-  if not additionReadValid or h~=additionHero then
-    additionStatus.Caption='Read the currently selected hero before adding.'
-    additionReadValid=false
-    return
-  end
-  local skillId=addSkillCombo.ItemIndex
-  if skillId<0 or skillId>=#secondarySkills then additionStatus.Caption='Choose a skill first.'; return end
-  if additionSnapshot[skillId+1]>0 then additionStatus.Caption='That skill is already learned; nothing was written.'; return end
-  if additionCount>=8 then additionStatus.Caption='Hero already has the maximum of 8 secondary skills.'; return end
-  -- Match the observed natural gain: set the new skill to Basic, then increment count.
-  if not writeAt(h+0xC9+skillId,'byte',1) then additionStatus.Caption='Could not write the new skill level.'; additionReadValid=false; return end
-  if not writeAt(h+0x101,'byte',additionCount+1) then
-    additionStatus.Caption='Skill level was written but count failed. Re-read before any further change.'
-    additionReadValid=false
-    return
-  end
-  additionReadValid=false
-  readAdditionSkills()
-  additionStatus.Caption=string.format('Added Basic %s. Inspect the hero screen, then save/reload to verify.',secondarySkills[skillId+1])
+local addSkillButton=button(skillAdditionTab,'Add selected skill (paused)',195,158,190,function()
+  additionStatus.Caption='No memory written. HotA runtime skill-order state is still being mapped.'
 end)
-label(skillAdditionTab,'WIP scope: writes the observed skill-level byte and +0x101 count only. It does not call the game\'s skill-gain routine or assign mastery above Basic.',22,220,690)
+addSkillButton.Enabled=false
+label(skillAdditionTab,'The attached HotA table labels hero +0xE5 as “Skills Order (Useless in HOTA)”. It also has a separate HotA runtime skill-order probe; use that before any more addition writes.',22,220,690)
 
 -- Read-only hero dumps for comparing HotA memory before and after game actions.
 label(dumpTab,'HERO MEMORY DUMP',20,16,400).Font.Style='[fsBold]'
-label(dumpTab,'Select the hero first. These buttons only read memory.',22,40,650)
+label(dumpTab,'Hero dumps are read-only. For HotA order, enable the table probe and open a normal hero screen first.',22,40,690)
 local dumpMemo=createMemo(dumpTab)
 dumpMemo.Left,dumpMemo.Top,dumpMemo.Width,dumpMemo.Height=22,68,680,310
 dumpMemo.ReadOnly=true
@@ -473,6 +457,44 @@ local function dumpHeroBytes(startOffset,endOffset)
 end
 button(dumpTab,'Dump skill area',22,397,150,function() dumpHeroBytes(0xB0,0x130) end)
 button(dumpTab,'Dump full hero record',185,397,190,function() dumpHeroBytes(0x000,0x491) end)
+button(dumpTab,'Dump HotA runtime order',390,397,190,function()
+  local symbol=symbolAddress('skillOrderAddr')
+  if not symbol then
+    dumpMemo.Lines.Text='CE cannot resolve skillOrderAddr. Confirm the HotA skill-order probe is checked.'
+    dumpStatus.Caption='Probe symbol is not registered.'
+    return
+  end
+  local p=readPtr('skillOrderAddr')
+  if not p or p==0 then
+    local hook=symbolAddress('skillOrderHook')
+    local module=symbolAddress('hota.dll')
+    local hookLocation=(hook and module and hook>=module) and string.format('hota.dll+0x%X',hook-module) or 'unknown location'
+    local function codeContext(name,address)
+      if not address then return name..': unavailable' end
+      local parts={}
+      for offset=-16,15 do
+        local value=readAt(address+offset,'byte')
+        parts[#parts+1]=value and string.format('%02X',value) or '??'
+      end
+      return name..' ('..table.concat(parts,' ')..')'
+    end
+    local oldHook=symbolAddress('hota.dll+1232A4')
+    dumpMemo.Lines.Text='Probe is enabled, but the hook has not captured a runtime call. Matched instruction: '..hookLocation..'. Expected original hook: hota.dll+0x1232A4.\r\n'..codeContext('Matched code, -16..+15',hook)..'\r\n'..codeContext('Old address, -16..+15',oldHook)
+    dumpStatus.Caption='Probe symbol exists; captured pointer is zero.'
+    return
+  end
+  local lines={string.format('HotA skillOrderAddr=0x%X; runtime order bytes (28 skills)',p)}
+  for rowStart=0,27,16 do
+    local parts={string.format('+%02X:',rowStart)}
+    for offset=rowStart,math.min(rowStart+15,27) do
+      local value=readAt(p+offset,'byte')
+      parts[#parts+1]=value and string.format('%02X',value) or '??'
+    end
+    lines[#lines+1]=table.concat(parts,' ')
+  end
+  dumpMemo.Lines.Text=table.concat(lines,'\r\n')
+  dumpStatus.Caption=string.format('Read HotA runtime skill-order array at 0x%X.',p)
+end)
 
 -- Inventory tab: one selected slot at a time; table stores 21 8-byte records.
 label(inventoryTab,'ARTIFACT / AUXILIARY SLOT EDITOR',20,18,400).Font.Style='[fsBold]'
