@@ -995,6 +995,107 @@ unregistersymbol(skillOrderAddr)
 unregistersymbol(skillOrderHook)
 dealloc(newmem)</AssemblerScript>
     </CheatEntry>
+    <CheatEntry>
+      <ID>9001</ID>
+      <Description>"Battle: infinite spell cast hook (UI toggle controls it)"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>{ Adapted from CannonFodder's HotA Get Combat Magic Cast injection. }
+define(bytes,C7 84 8B B4 54 00 00 01 00 00 00)
+[ENABLE]
+aobscanmodule(infiniteSpellCastHook,h3hota HD.exe,C7 84 8B B4 54 00 00 01 00 00 00)
+registersymbol(infiniteSpellCastHook)
+assert(infiniteSpellCastHook,bytes)
+alloc(newmem,$1000,infiniteSpellCastHook)
+label(combatMagicCastSwitchAddr)
+registersymbol(combatMagicCastSwitchAddr)
+label(bSpellCastPending)
+registersymbol(bSpellCastPending)
+label(return)
+newmem:
+  mov [combatMagicCastSwitchAddr],ebx
+  add [combatMagicCastSwitchAddr],ecx
+  add [combatMagicCastSwitchAddr],ecx
+  add [combatMagicCastSwitchAddr],ecx
+  add [combatMagicCastSwitchAddr],ecx
+  mov dword ptr [bSpellCastPending],1
+  mov dword ptr [ebx+ecx*4+000054B4],00000001
+  jmp return
+combatMagicCastSwitchAddr:
+  dd 0
+bSpellCastPending:
+  dd 0
+infiniteSpellCastHook:
+  jmp newmem
+  nop 6
+return:
+[DISABLE]
+infiniteSpellCastHook:
+  db bytes
+unregistersymbol(combatMagicCastSwitchAddr)
+unregistersymbol(bSpellCastPending)
+unregistersymbol(infiniteSpellCastHook)
+dealloc(newmem)</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>9003</ID>
+      <Description>"Neutral creature pointer capture (enable before right-clicking)"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>{ Adapted from the HotA neutral-creature status probe in the reference table. }
+define(bytes,8B 04 88 89 47 18)
+[ENABLE]
+aobscanmodule(neutralCreatureReadHook,hota.dll,8B 04 88 89 47 18)
+registersymbol(neutralCreatureReadHook)
+assert(neutralCreatureReadHook,bytes)
+alloc(newmem,$1000,neutralCreatureReadHook)
+label(neutralCreatureRecordAddr)
+registersymbol(neutralCreatureRecordAddr)
+label(neutralCreatureCaptureCount)
+registersymbol(neutralCreatureCaptureCount)
+label(return)
+newmem:
+  push edx
+  lea edx,[eax+ecx*4]
+  mov [neutralCreatureRecordAddr],edx
+  pop edx
+  inc dword ptr [neutralCreatureCaptureCount]
+  mov eax,[eax+ecx*4]
+  mov [edi+18],eax
+  jmp return
+neutralCreatureRecordAddr:
+  dd 0
+neutralCreatureCaptureCount:
+  dd 0
+neutralCreatureReadHook:
+  jmp newmem
+  nop
+return:
+[DISABLE]
+neutralCreatureReadHook:
+  db bytes
+unregistersymbol(neutralCreatureReadHook)
+unregistersymbol(neutralCreatureRecordAddr)
+unregistersymbol(neutralCreatureCaptureCount)
+dealloc(newmem)</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>9004</ID>
+      <Description>"Hero specialty table pointer probe"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>{ Reads the specialty-table pointer immediate used by the reference HotA table. }
+[ENABLE]
+aobscanmodule(specialtyTablePointerPattern,h3hota HD.exe,8B 15 ?? ?? ?? ?? 8D 0C 80 8D 04 CA)
+registersymbol(specialtyTablePointerPattern)
+alloc(newmem,$1000,specialtyTablePointerPattern)
+label(Specialties)
+registersymbol(Specialties)
+newmem:
+Specialties:
+  readmem(specialtyTablePointerPattern+2,4)
+[DISABLE]
+unregistersymbol(specialtyTablePointerPattern)
+unregistersymbol(Specialties)
+dealloc(newmem)</AssemblerScript>
+    </CheatEntry>
   </CheatEntries>
   <UserdefinedSymbols/>
   <Comments>1:Scroll of Hypnotize
@@ -1036,9 +1137,13 @@ dealloc(newmem)</AssemblerScript>
 if HotATrainerForm and HotATrainerForm.destroy then
   pcall(function() HotATrainerForm:destroy() end)
 end
+if HotASpellResetTimer and HotASpellResetTimer.destroy then
+  pcall(function() HotASpellResetTimer:destroy() end)
+  HotASpellResetTimer=nil
+end
 
 local artifactOptions = {
-  {1, &quot;Spell Scrollâ†“â†“â†“&quot;},
+  {1, &quot;Spell Scroll↓↓↓&quot;},
   {7, &quot;Centaur&apos;s Axe&quot;},
   {8, &quot;Blackshard of the Dead Knight&quot;},
   {9, &quot;Greater Gnoll&apos;s Flail&quot;},
@@ -1221,8 +1326,8 @@ end
 local function writeAt(addr, kind, value)
   if not addr then return false end
   local fn = (kind == &apos;byte&apos; and writeBytes) or (kind == &apos;word&apos; and writeSmallInteger) or writeInteger
-  local ok = pcall(fn, addr, value)
-  return ok
+  local ok, result = pcall(fn, addr, value)
+  return ok and result ~= false
 end
 
 local function num(text)
@@ -1234,31 +1339,40 @@ end
 local form = createForm(false)
 HotATrainerForm = form
 form.Caption = &apos;Heroes III: HotA Trainer&apos;
-form.Width = 780
+form.Width = 960
 form.Height = 590
 form.Position = poScreenCenter
 form.BorderStyle = bsSizeable
 
 local title = createLabel(form)
 title.Caption = &apos;HORN OF THE ABYSS  |  MAP TESTING TOOL&apos;
-title.Left, title.Top, title.Width, title.Height = 18, 12, 720, 28
+title.Left, title.Top, title.Width, title.Height = 18, 12, 900, 28
 title.Font.Size = 14
 title.Font.Style = &apos;[fsBold]&apos;
 
 local status = createLabel(form)
-status.Caption = &apos;Waiting for the table scriptâ€¦&apos;
-status.Left, status.Top, status.Width, status.Height = 20, 43, 720, 22
+status.Caption = &apos;Waiting for the table script…&apos;
+status.Left, status.Top, status.Width, status.Height = 20, 43, 900, 22
 
 -- Cheat Engine exposes tab pages through createPageControl(), not
 -- createTabControl()/createTabSheet().
 local tabs = createPageControl(form)
-tabs.Left, tabs.Top, tabs.Width, tabs.Height = 16, 75, 735, 455
+tabs.Left, tabs.Top, tabs.Width, tabs.Height = 16, 75, 915, 455
 local overview = tabs.addTab(); overview.Caption = &apos;Overview&apos;
-local heroTab = tabs.addTab(); heroTab.Caption = &apos;Hero&apos;
+local heroTab = tabs.addTab(); heroTab.Caption = &apos;Hero Stats&apos;
+local armyTab = tabs.addTab(); armyTab.Caption = &apos;Army&apos;
 local inventoryTab = tabs.addTab(); inventoryTab.Caption = &apos;Inventory&apos;
-local skillsTab = tabs.addTab(); skillsTab.Caption = &apos;Skills Mastery&apos;
-local skillAdditionTab = tabs.addTab(); skillAdditionTab.Caption = &apos;Skill Addition&apos;
-local dumpTab = tabs.addTab(); dumpTab.Caption = &apos;Memory Dump&apos;
+local skillsContainer = tabs.addTab(); skillsContainer.Caption = &apos;Skills&apos;
+local skillPages=createPageControl(skillsContainer)
+skillPages.Left,skillPages.Top,skillPages.Width,skillPages.Height=0,0,915,430
+local skillsTab=skillPages.addTab(); skillsTab.Caption=&apos;Mastery&apos;
+local skillAdditionTab=skillPages.addTab(); skillAdditionTab.Caption=&apos;Addition&apos;
+local dumpTab=skillPages.addTab(); dumpTab.Caption=&apos;Memory Dump&apos;
+local spellsTab = tabs.addTab(); spellsTab.Caption = &apos;Spells&apos;
+local battleTab=spellsTab
+local toolsTab=spellsTab
+local mapTab = tabs.addTab(); mapTab.Caption = &apos;Map&apos;
+local neutralTab=mapTab
 
 local function label(parent, caption, x, y, w)
   local c = createLabel(parent); c.Caption = caption; c.Left=x; c.Top=y; c.Width=w or 180; c.Height=22; return c
@@ -1301,7 +1415,7 @@ for i,d in ipairs(resourceDefs) do
 end
 local resourceRefresh
 local resourceApply = button(overview, &apos;Apply resources&apos;, 490, 250, 140, function()
-  local p=readPtr(&apos;pPlayer&apos;); if not p or p==0 then status.Caption=&apos;Player pointer not ready â€” open a map and select a player.&apos;; return end
+  local p=readPtr(&apos;pPlayer&apos;); if not p or p==0 then status.Caption=&apos;Player pointer not ready — open a map and select a player.&apos;; return end
   for i,d in ipairs(resourceDefs) do local v=num(resourceEdits[i].Text); if v then writeAt(p+d[2], &apos;int&apos;, v) end end
   status.Caption=&apos;Resource values written.&apos;
 end)
@@ -1309,15 +1423,15 @@ end)
 -- Hero tab
 label(heroTab, &apos;CURRENTLY SELECTED HERO&apos;, 20, 18, 300).Font.Style=&apos;[fsBold]&apos;
 local heroFields = {
-  {&apos;Experience&apos;,0x51,&apos;int&apos;}, {&apos;Level&apos;,0x55,&apos;word&apos;},
+  {&apos;Experience&apos;,0x51,&apos;int&apos;}, {&apos;Level&apos;,0x55,&apos;word&apos;}, {&apos;Mana&apos;,0x18,&apos;word&apos;},
   {&apos;Attack&apos;,0x476,&apos;byte&apos;}, {&apos;Defence&apos;,0x477,&apos;byte&apos;},
   {&apos;Spell Power&apos;,0x478,&apos;byte&apos;}, {&apos;Knowledge&apos;,0x479,&apos;byte&apos;},
   {&apos;Maximum movement&apos;,0x49,&apos;word&apos;}, {&apos;Current movement&apos;,0x4D,&apos;word&apos;}
 }
 local heroEdits={}
 for i,d in ipairs(heroFields) do
-  local col=(i&gt;4) and 1 or 0
-  local row=(i-1)%4
+  local col=(i&gt;5) and 1 or 0
+  local row=(i-1)%5
   local x=22+col*330; local y=55+row*55
   label(heroTab,d[1],x,y,155)
   heroEdits[i]=edit(heroTab,x+160,y-4,110)
@@ -1336,6 +1450,376 @@ button(heroTab,&apos;Apply hero edits&apos;,160,340,145,function()
   for i,d in ipairs(heroFields) do local v=num(heroEdits[i].Text); if v then writeAt(h+d[2],d[3],v) end end
   status.Caption=&apos;Hero values written.&apos;
 end)
+button(heroTab,&apos;Set mana to 9999&apos;,320,340,150,function()
+  local h=readPtr(&apos;pPlayerCurrentHero&apos;)
+  if not h or h==0 then heroName.Caption=&apos;No current hero pointer. Select a hero first.&apos;; return end
+  if writeAt(h+0x18,&apos;word&apos;,9999) then
+    for i,d in ipairs(heroFields) do
+      if d[2]==0x18 then heroEdits[i].Text=&apos;9999&apos;; break end
+    end
+    status.Caption=&apos;Current hero mana set to 9999.&apos;
+  else
+    status.Caption=&apos;Could not write current hero mana.&apos;
+  end
+end)
+
+local creatureOptions={
+  {0, &apos;Pikeman&apos;},
+  {1, &apos;Halberdier&apos;},
+  {2, &apos;Archer&apos;},
+  {3, &apos;Marksman&apos;},
+  {4, &apos;Griffin&apos;},
+  {5, &apos;Royal Griffin&apos;},
+  {6, &apos;Swordsman&apos;},
+  {7, &apos;Crusader&apos;},
+  {8, &apos;Monk&apos;},
+  {9, &apos;Zealot&apos;},
+  {10, &apos;Cavalier&apos;},
+  {11, &apos;Champion&apos;},
+  {12, &apos;Angel&apos;},
+  {13, &apos;Archangel&apos;},
+  {14, &apos;Centaur&apos;},
+  {15, &apos;Centaur Captain&apos;},
+  {16, &apos;Dwarf&apos;},
+  {17, &apos;Battle Dwarf&apos;},
+  {18, &apos;Wood Elf&apos;},
+  {19, &apos;Grand Elf&apos;},
+  {20, &apos;Pegasus&apos;},
+  {21, &apos;Silver Pegasus&apos;},
+  {22, &apos;Dendroid Guard&apos;},
+  {23, &apos;Dendroid Soldier&apos;},
+  {24, &apos;Unicorn&apos;},
+  {25, &apos;War Unicorn&apos;},
+  {26, &apos;Green Dragon&apos;},
+  {27, &apos;Gold Dragon&apos;},
+  {28, &apos;Gremlin&apos;},
+  {29, &apos;Master Gremlin&apos;},
+  {30, &apos;Stone Gargoyle&apos;},
+  {31, &apos;Obsidian Gargoyle&apos;},
+  {32, &apos;Stone Golem&apos;},
+  {33, &apos;Iron Golem&apos;},
+  {34, &apos;Mage&apos;},
+  {35, &apos;Arch Mage&apos;},
+  {36, &apos;Genie&apos;},
+  {37, &apos;Master Genie&apos;},
+  {38, &apos;Naga&apos;},
+  {39, &apos;Naga Queen&apos;},
+  {40, &apos;Giant&apos;},
+  {41, &apos;Titan&apos;},
+  {42, &apos;Imp&apos;},
+  {43, &apos;Familiar&apos;},
+  {44, &apos;Gog&apos;},
+  {45, &apos;Magog&apos;},
+  {46, &apos;Hell Hound&apos;},
+  {47, &apos;Cerberus&apos;},
+  {48, &apos;Demon&apos;},
+  {49, &apos;Horned Demon&apos;},
+  {50, &apos;Pit Fiend&apos;},
+  {51, &apos;Pit Lord&apos;},
+  {52, &apos;Efreeti&apos;},
+  {53, &apos;Efreet Sultan&apos;},
+  {54, &apos;Devil&apos;},
+  {55, &apos;Arch Devil&apos;},
+  {56, &apos;Skeleton&apos;},
+  {57, &apos;Skeleton Warrior&apos;},
+  {58, &apos;Walking Dead&apos;},
+  {59, &apos;Zombie&apos;},
+  {60, &apos;Wight&apos;},
+  {61, &apos;Wraith&apos;},
+  {62, &apos;Vampire&apos;},
+  {63, &apos;Vampire Lord&apos;},
+  {64, &apos;Lich&apos;},
+  {65, &apos;Power Lich&apos;},
+  {66, &apos;Black Knight&apos;},
+  {67, &apos;Dread Knight&apos;},
+  {68, &apos;Bone Dragon&apos;},
+  {69, &apos;Ghost Dragon&apos;},
+  {70, &apos;Troglodyte&apos;},
+  {71, &apos;Infernal Troglodyte&apos;},
+  {72, &apos;Harpy&apos;},
+  {73, &apos;Harpy Hag&apos;},
+  {74, &apos;Beholder&apos;},
+  {75, &apos;Evil Eye&apos;},
+  {76, &apos;Medusa&apos;},
+  {77, &apos;Medusa Queen&apos;},
+  {78, &apos;Minotaur&apos;},
+  {79, &apos;Minotaur King&apos;},
+  {80, &apos;Manticore&apos;},
+  {81, &apos;Scorpicore&apos;},
+  {82, &apos;Red Dragon&apos;},
+  {83, &apos;Black Dragon&apos;},
+  {84, &apos;Goblin&apos;},
+  {85, &apos;Hobgoblin&apos;},
+  {86, &apos;Wolf Rider&apos;},
+  {87, &apos;Wolf Raider&apos;},
+  {88, &apos;Orc&apos;},
+  {89, &apos;Orc Chieftain&apos;},
+  {90, &apos;Ogre&apos;},
+  {91, &apos;Ogre Mage&apos;},
+  {92, &apos;Roc&apos;},
+  {93, &apos;Thunderbird&apos;},
+  {94, &apos;Cyclops&apos;},
+  {95, &apos;Cyclops King&apos;},
+  {96, &apos;Behemoth&apos;},
+  {97, &apos;Ancient Behemoth&apos;},
+  {98, &apos;Gnoll&apos;},
+  {99, &apos;Gnoll Marauder&apos;},
+  {100, &apos;Lizardman&apos;},
+  {101, &apos;Lizard Warrior&apos;},
+  {102, &apos;Gorgon&apos;},
+  {103, &apos;Mighty Gorgon&apos;},
+  {104, &apos;Serpent Fly&apos;},
+  {105, &apos;Dragon Fly&apos;},
+  {106, &apos;Basilisk&apos;},
+  {107, &apos;Greater Basilisk&apos;},
+  {108, &apos;Wyvern&apos;},
+  {109, &apos;Wyvern Monarch&apos;},
+  {110, &apos;Hydra&apos;},
+  {111, &apos;Chaos Hydra&apos;},
+  {112, &apos;Air Elementa&apos;},
+  {113, &apos;Earth Elemental&apos;},
+  {114, &apos;Fire Elemental&apos;},
+  {115, &apos;Water Elemental&apos;},
+  {116, &apos;Gold Golem&apos;},
+  {117, &apos;Diamond Golem&apos;},
+  {118, &apos;Pixie&apos;},
+  {119, &apos;Sprite&apos;},
+  {120, &apos;Psychic Elemental&apos;},
+  {121, &apos;Magic Elemental&apos;},
+  {123, &apos;Ice Elemental&apos;},
+  {125, &apos;Magma Elemental&apos;},
+  {127, &apos;Storm Elemental&apos;},
+  {129, &apos;Energy Elemental&apos;},
+  {130, &apos;Firebird&apos;},
+  {131, &apos;Phoenix&apos;},
+  {132, &apos;Azure Dragon&apos;},
+  {133, &apos;Crystal Dragon&apos;},
+  {134, &apos;Faerie Dragon&apos;},
+  {135, &apos;Rust Dragon&apos;},
+  {136, &apos;Enchanter&apos;},
+  {137, &apos;Sharpshooter&apos;},
+  {138, &apos;Halfling&apos;},
+  {139, &apos;Peasant&apos;},
+  {140, &apos;Boar&apos;},
+  {141, &apos;Mummy&apos;},
+  {142, &apos;Nomad&apos;},
+  {143, &apos;Rogue&apos;},
+  {144, &apos;Troll&apos;},
+  {145, &apos;Catapult&apos;},
+  {146, &apos;Ballista&apos;},
+  {147, &apos;First Aid Tent&apos;},
+  {148, &apos;Ammo Cart&apos;},
+  {149, &apos;Arrow Towers&apos;},
+  {150, &apos;Cannon&apos;},
+  {-1, &apos;--Empty--&apos;},
+  {153, &apos;Nymph&apos;},
+  {154, &apos;Oceanids&apos;},
+  {155, &apos;Crew Mates&apos;},
+  {156, &apos;Seamen&apos;},
+  {157, &apos;Pirates&apos;},
+  {158, &apos;Corsairs&apos;},
+  {151, &apos;Sea Dogs&apos;},
+  {159, &apos;Stormbirds&apos;},
+  {160, &apos;Ayssids&apos;},
+  {161, &apos;Sea Witches&apos;},
+  {162, &apos;Sorceresses&apos;},
+  {163, &apos;Nix&apos;},
+  {164, &apos;Nix Warriors&apos;},
+  {165, &apos;Sea Serpents&apos;},
+  {166, &apos;Haspids&apos;},
+  {167, &apos;Satyrs&apos;},
+  {168, &apos;Fangarms&apos;},
+  {169, &apos;Leprechauns&apos;},
+  {170, &apos;Steel golems&apos;},
+  {171, &apos;Halfling Grenadier&apos;},
+  {172, &apos;Mechanic&apos;},
+  {173, &apos;Engineer&apos;},
+  {174, &apos;Armadillo&apos;},
+  {175, &apos;Bellwether Armadillo&apos;},
+  {176, &apos;Automaton&apos;},
+  {177, &apos;Sentinel Automaton&apos;},
+  {178, &apos;Sandworm&apos;},
+  {179, &apos;Olgoi-Khorkhoi&apos;},
+  {180, &apos;Gunslinger&apos;},
+  {181, &apos;Bounty Hunter&apos;},
+  {182, &apos;Couatl&apos;},
+  {183, &apos;Crimson Couatl&apos;},
+  {184, &apos;Dreadnought&apos;},
+  {185, &apos;Juggernaut&apos;},
+  {186, &apos;Kobold&apos;},
+  {187, &apos;Kobold Foreman&apos;},
+  {188, &apos;Mountain Ram&apos;},
+  {189, &apos;Argali&apos;},
+  {190, &apos;Snow Elf&apos;},
+  {191, &apos;Steel Elf&apos;},
+  {192, &apos;Yeti&apos;},
+  {193, &apos;Yeti Runemaster&apos;},
+  {194, &apos;Shaman&apos;},
+  {195, &apos;Great Shaman&apos;},
+  {196, &apos;Mammoth&apos;},
+  {197, &apos;War Mammoth&apos;},
+  {198, &apos;Jotunn&apos;},
+  {199, &apos;Jotunn Warlord&apos;},
+}
+local creatureIndexById={}
+for index,entry in ipairs(creatureOptions) do creatureIndexById[entry[1]]=index end
+-- Per-slot hero army editor. HotA table layout: types at +0x91, counts at +0xAD, four-byte stride.
+label(armyTab,&apos;EDIT HERO ARMY (7 SLOTS)&apos;,20,16,400).Font.Style=&apos;[fsBold]&apos;
+label(armyTab,&apos;Read first. Empty slots use --Empty-- with amount 0. Counts are limited to signed 32-bit values.&apos;,22,40,700)
+label(armyTab,&apos;Slot&apos;,22,73,55); label(armyTab,&apos;Creature&apos;,85,73,350); label(armyTab,&apos;Amount&apos;,480,73,90)
+local armyRows={}
+for slot=1,7 do
+  local y=96+(slot-1)*37
+  label(armyTab,&apos;Slot &apos;..slot,22,y+3,55)
+  local unit=createComboBox(armyTab); unit.Left=85; unit.Top=y; unit.Width=370
+  for _,entry in ipairs(creatureOptions) do unit.Items.add(string.format(&apos;%d: %s&apos;,entry[1],entry[2])) end
+  unit.ItemIndex=0
+  local count=edit(armyTab,480,y,110); count.Text=&apos;0&apos;
+  armyRows[slot]={unit=unit,count=count}
+end
+local armyStatus=label(armyTab,&apos;Read the selected hero before editing.&apos;,22,360,690)
+local armySnapshot,armyHero,armyReadValid=nil,nil,false
+local function readArmy()
+  local h=readPtr(&apos;pPlayerCurrentHero&apos;)
+  if not h or h==0 then armyStatus.Caption=&apos;Select a hero in-game first.&apos;; armyReadValid=false; return false end
+  local types,counts={},{}
+  local issue=nil
+  for slot=1,7 do
+    local id=readAt(h+0x91+(slot-1)*4,&apos;int&apos;)
+    local count=readAt(h+0xAD+(slot-1)*4,&apos;int&apos;)
+    if id==4294967295 then id=-1 end
+    if count==4294967295 then count=-1 end
+    local itemIndex=id and creatureIndexById[id]
+    if id==nil or count==nil then
+      issue=issue or string.format(&apos;Slot %d could not be read (unit=%s, amount=%s).&apos;,slot,tostring(id),tostring(count))
+      armyRows[slot].unit.ItemIndex=-1
+      armyRows[slot].count.Text=&apos;&apos;
+    elseif itemIndex==nil then
+      issue=issue or string.format(&apos;Slot %d has unit ID %s, which is missing from the creature list.&apos;,slot,tostring(id))
+      armyRows[slot].unit.ItemIndex=-1
+      armyRows[slot].count.Text=tostring(count)
+    elseif count&lt;0 and id~=-1 then
+      issue=issue or string.format(&apos;Slot %d has a negative amount (%s) for unit ID %s.&apos;,slot,tostring(count),tostring(id))
+      armyRows[slot].unit.ItemIndex=itemIndex-1
+      armyRows[slot].count.Text=tostring(count)
+    else
+      armyRows[slot].unit.ItemIndex=itemIndex-1
+      armyRows[slot].count.Text=tostring((id==-1 or count&lt;0) and 0 or count)
+    end
+    types[slot],counts[slot]=id,count
+  end
+  local valid=issue==nil
+  armySnapshot={types=types,counts=counts}; armyHero=h; armyReadValid=valid
+  armyStatus.Caption=valid and string.format(&apos;Read 7 army slots from hero 0x%X.&apos;,h) or (issue..&apos; Apply is blocked for safety.&apos;)
+  return valid
+end
+button(armyTab,&apos;Read hero army&apos;,22,395,140,readArmy)
+button(armyTab,&apos;Apply army edits&apos;,175,395,155,function()
+  local h=readPtr(&apos;pPlayerCurrentHero&apos;)
+  if not h or h==0 then armyStatus.Caption=&apos;Select a hero first.&apos;; return end
+  if not armyReadValid or h~=armyHero or not armySnapshot then armyStatus.Caption=&apos;Read the currently selected hero army before applying.&apos;; return end
+  local newTypes,newCounts={},{}
+  for slot=1,7 do
+    local row=armyRows[slot]; local index=row.unit.ItemIndex
+    local amount=num(row.count.Text)
+    if index&lt;0 or not creatureOptions[index+1] or amount==nil or amount&lt;0 or amount&gt;2147483647 then
+      armyStatus.Caption=&apos;Choose a creature and enter an amount from 0 to 2147483647 for every slot.&apos;; return
+    end
+    local id=creatureOptions[index+1][1]
+    if id==-1 then amount=0 elseif amount==0 then id=-1 end
+    newTypes[slot],newCounts[slot]=id,amount
+  end
+  local success=true
+  for slot=1,7 do
+    if not writeAt(h+0x91+(slot-1)*4,&apos;int&apos;,newTypes[slot]) or not writeAt(h+0xAD+(slot-1)*4,&apos;int&apos;,newCounts[slot]) then success=false; break end
+  end
+  if not success then
+    for slot=1,7 do
+      writeAt(h+0x91+(slot-1)*4,&apos;int&apos;,armySnapshot.types[slot])
+      writeAt(h+0xAD+(slot-1)*4,&apos;int&apos;,armySnapshot.counts[slot])
+    end
+    armyReadValid=false; armyStatus.Caption=&apos;A write failed; previous army values were restored. Read the army again before retrying.&apos;; return
+  end
+  readArmy()
+  armyStatus.Caption=&apos;Army written. Reopen the hero screen to refresh its display.&apos;
+end)
+
+-- Battle spell recast toggle. Activates/deactivates its AA hook by table record ID.
+label(battleTab,&apos;INFINITE COMBAT SPELL CASTS&apos;,470,16,420).Font.Style=&apos;[fsBold]&apos;
+label(battleTab,&apos;Clears the hero cast flag after each spell.&apos;,472,42,420)
+label(battleTab,&apos;The spellbook may update after the next unit action.&apos;,472,66,420)
+local infiniteSpellToggle=createCheckBox(battleTab)
+infiniteSpellToggle.Caption=&apos;Allow repeated hero spell casts&apos;
+infiniteSpellToggle.Left,infiniteSpellToggle.Top,infiniteSpellToggle.Width=472,96,360
+local battleSpellStatus=label(battleTab,&apos;Toggle is off.&apos;,472,128,420)
+local battleToggleUpdating=false
+local infiniteSpellTimer=createTimer(nil,false)
+HotASpellResetTimer=infiniteSpellTimer
+infiniteSpellTimer.Interval=50
+local function battleSpellRecord()
+  local ok,record=pcall(function() return getAddressList().getMemoryRecordByID(9001) end)
+  return ok and record or nil
+end
+local function refreshBattleSpellToggle()
+  local record=battleSpellRecord()
+  local address=symbolAddress(&apos;combatMagicCastSwitchAddr&apos;)
+  battleToggleUpdating=true
+  infiniteSpellToggle.Enabled=record~=nil
+  infiniteSpellToggle.Checked=record and record.Active or false
+  infiniteSpellTimer.Enabled=infiniteSpellToggle.Checked
+  battleToggleUpdating=false
+  if not record then battleSpellStatus.Caption=&apos;Battle hook entry is missing from the loaded table.&apos;
+  elseif not infiniteSpellToggle.Checked then battleSpellStatus.Caption=&apos;Toggle is off.&apos;
+  elseif not address then battleSpellStatus.Caption=&apos;Hook is on. Cast a combat spell once to capture its flag address.&apos;
+  elseif (readPtr(&apos;combatMagicCastSwitchAddr&apos;) or 0)==0 then battleSpellStatus.Caption=&apos;Hook is on. Cast a combat spell once to capture its flag address.&apos;
+  else battleSpellStatus.Caption=&apos;Hook is on. Cast flag will be cleared after each spell.&apos; end
+end
+infiniteSpellTimer.OnTimer=function()
+  local record=battleSpellRecord()
+  if not record or not record.Active or not infiniteSpellToggle.Checked then infiniteSpellTimer.Enabled=false; return end
+  local pendingAddress=symbolAddress(&apos;bSpellCastPending&apos;)
+  local base=readPtr(&apos;combatMagicCastSwitchAddr&apos;)
+  if not pendingAddress or not base or base==0 or (readAt(pendingAddress,&apos;int&apos;) or 0)~=1 then return end
+  if writeAt(base+0x54B4,&apos;int&apos;,0) then
+    writeAt(pendingAddress,&apos;int&apos;,0)
+    battleSpellStatus.Caption=&apos;Cast flag cleared. The spellbook may update after the next unit action.&apos;
+  end
+end
+infiniteSpellToggle.OnChange=function(sender)
+  if battleToggleUpdating then return end
+  local record=battleSpellRecord()
+  if not record then battleSpellStatus.Caption=&apos;Battle hook entry is missing from the loaded table.&apos;; return end
+  if sender.Checked then
+    local ok=pcall(function() record.Active=true end)
+    local address=symbolAddress(&apos;combatMagicCastSwitchAddr&apos;)
+    if not ok or not address or not symbolAddress(&apos;bSpellCastPending&apos;) or not record.Active then
+      battleToggleUpdating=true; sender.Checked=false; battleToggleUpdating=false
+      battleSpellStatus.Caption=&apos;Could not install the battle hook. Check the CE error and game build.&apos;
+      return
+    end
+    infiniteSpellTimer.Enabled=true
+    battleSpellStatus.Caption=&apos;Hook is on. Cast a combat spell once; its cast flag will then be cleared automatically.&apos;
+  else
+    infiniteSpellTimer.Enabled=false
+    pcall(function() record.Active=false end)
+    battleSpellStatus.Caption=&apos;Toggle is off.&apos;
+  end
+end
+button(battleTab,&apos;Reset spell flag now&apos;,472,170,155,function()
+  local base=readPtr(&apos;combatMagicCastSwitchAddr&apos;)
+  local pending=symbolAddress(&apos;bSpellCastPending&apos;)
+  if not base or base==0 or not pending then
+    battleSpellStatus.Caption=&apos;No battle flag captured yet. Turn the toggle on and cast a combat spell once.&apos;
+    return
+  end
+  if writeAt(base+0x54B4,&apos;int&apos;,0) then
+    writeAt(pending,&apos;int&apos;,0)
+    battleSpellStatus.Caption=&apos;Cast flag reset. The spellbook may update after the next unit action.&apos;
+  else
+    battleSpellStatus.Caption=&apos;Could not reset the captured battle cast flag.&apos;
+  end
+end)
+button(battleTab,&apos;Refresh hook status&apos;,640,170,160,refreshBattleSpellToggle)
 
 local secondarySkills={
   &apos;Pathfinding&apos;,&apos;Archery&apos;,&apos;Logistics&apos;,&apos;Scouting&apos;,&apos;Diplomacy&apos;,&apos;Navigation&apos;,&apos;Leadership&apos;,
@@ -1351,7 +1835,7 @@ for i,name in ipairs(secondarySkills) do
   local col=(i&gt;14) and 1 or 0
   local row=(i-1)%14
   local x=22+col*355
-  local y=68+row*22
+  local y=54+row*20
   label(skillsTab,name,x,y,112)
   local level=createComboBox(skillsTab); level.Left=x+115; level.Top=y-3; level.Width=135
   level.Items.add(&apos;Not learned&apos;); level.Items.add(&apos;Basic&apos;); level.Items.add(&apos;Advanced&apos;); level.Items.add(&apos;Expert&apos;)
@@ -1359,7 +1843,7 @@ for i,name in ipairs(secondarySkills) do
   level.Enabled=false
   skillEdits[i]=level
 end
-local skillStatus=label(skillsTab,&apos;Read a selected hero before applying. HotA Interference is not mapped here.&apos;,22,416,700)
+local skillStatus=label(skillsTab,&apos;Read a selected hero before applying. HotA Interference is not mapped here.&apos;,22,382,700)
 local skillSnapshot,skillHero={},nil
 local skillReadValid=false
 local applyMasteryButton
@@ -1381,8 +1865,8 @@ local function readSkills()
     &apos;Skill data did not match the supported range; applying is blocked.&apos;
   return valid
 end
-button(skillsTab,&apos;Read skills&apos;,22,380,125,readSkills)
-applyMasteryButton=button(skillsTab,&apos;Apply mastery changes&apos;,160,380,175,function()
+button(skillsTab,&apos;Read skills&apos;,22,350,125,readSkills)
+applyMasteryButton=button(skillsTab,&apos;Apply mastery changes&apos;,160,350,175,function()
   local h=readPtr(&apos;pPlayerCurrentHero&apos;)
   if not h or h==0 then skillStatus.Caption=&apos;Select a hero first.&apos;; return end
   if not skillReadValid or h~=skillHero then
@@ -1455,17 +1939,263 @@ local addSkillButton=button(skillAdditionTab,&apos;Add selected skill (paused)&a
   additionStatus.Caption=&apos;No memory written. HotA runtime skill-order state is still being mapped.&apos;
 end)
 addSkillButton.Enabled=false
-label(skillAdditionTab,&apos;The attached HotA table labels hero +0xE5 as â€œSkills Order (Useless in HOTA)â€. It also has a separate HotA runtime skill-order probe; use that before any more addition writes.&apos;,22,220,690)
+label(skillAdditionTab,&apos;The attached HotA table labels hero +0xE5 as “Skills Order (Useless in HOTA)”. It also has a separate HotA runtime skill-order probe; use that before any more addition writes.&apos;,22,220,690)
+
+-- Hero spell-access array.
+label(toolsTab,&apos;HERO SPELL ACCESS&apos;,20,14,420).Font.Style=&apos;[fsBold]&apos;
+label(toolsTab,&apos;140 flags at hero +0x3EA. Values must be 0 or 1.&apos;,22,38,420)
+local spellMemo=createMemo(toolsTab)
+spellMemo.Left,spellMemo.Top,spellMemo.Width,spellMemo.Height=22,62,420,78
+spellMemo.ScrollBars=ssVertical
+spellMemo.Lines.Text=&apos;&apos;
+local spellStatus=label(toolsTab,&apos;No spell array loaded.&apos;,22,250,420)
+local spellTargetHero=nil
+local function getCurrentHero()
+  local h=readPtr(&apos;pPlayerCurrentHero&apos;)
+  if not h or h==0 then return nil end
+  return h
+end
+local function readSpellArray()
+  local h=getCurrentHero()
+  if not h then spellStatus.Caption=&apos;Select a hero first.&apos;; return nil end
+  local values={}
+  for i=0,139 do
+    local value=readAt(h+0x3EA+i,&apos;byte&apos;)
+    if value==nil then spellStatus.Caption=&apos;Could not read the full spell array.&apos;; return nil end
+    values[#values+1]=value
+  end
+  spellMemo.Lines.Text=table.concat(values,&apos; &apos;)
+  spellTargetHero=h
+  spellStatus.Caption=string.format(&apos;Read 140 spell-access bytes from hero 0x%X.&apos;,h)
+  return values,h
+end
+local function parseSpellArray(text)
+  local values={}
+  for token in text:gmatch(&apos;[^,%s;]+&apos;) do
+    local value=tonumber(token)
+    if not value or (value~=0 and value~=1) then return nil end
+    values[#values+1]=value
+  end
+  if #values~=140 then return nil end
+  return values
+end
+local function writeSpellArray(values, expectedHero)
+  local h=getCurrentHero()
+  if not h then spellStatus.Caption=&apos;Select a hero first.&apos;; return false end
+  if not expectedHero then spellStatus.Caption=&apos;Read a hero or load a preset before applying.&apos;; return false end
+  if h~=expectedHero then spellStatus.Caption=&apos;Selected hero changed. Read that hero again before applying.&apos;; return false end
+  local previous={}
+  for i=0,139 do
+    previous[i+1]=readAt(h+0x3EA+i,&apos;byte&apos;)
+    if previous[i+1]==nil then spellStatus.Caption=&apos;Could not validate the full spell array; nothing was written.&apos;; return false end
+  end
+  for i=0,139 do
+    if not writeAt(h+0x3EA+i,&apos;byte&apos;,values[i+1]) then
+      for rollback=0,i-1 do writeAt(h+0x3EA+rollback,&apos;byte&apos;,previous[rollback+1]) end
+      spellStatus.Caption=&apos;A write failed; previous spell bytes were restored where possible.&apos;
+      return false
+    end
+  end
+  spellStatus.Caption=string.format(&apos;Wrote 140 spell-access bytes to hero 0x%X.&apos;,h)
+  return true
+end
+button(toolsTab,&apos;Read spell array&apos;,22,151,125,function() readSpellArray() end)
+button(toolsTab,&apos;Apply edited array&apos;,158,151,140,function()
+  local values=parseSpellArray(spellMemo.Lines.Text)
+  if not values then spellStatus.Caption=&apos;Enter exactly 140 values, each 0 or 1.&apos;; return end
+  writeSpellArray(values,spellTargetHero)
+end)
+local referenceSpellPreset={}
+for token in string.gmatch(&apos;1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 1 1 1 1 1 1 1 1 1&apos;,&apos;%d+&apos;) do
+  referenceSpellPreset[#referenceSpellPreset+1]=tonumber(token)
+end
+button(toolsTab,&apos;Unlock reference set&apos;,22,207,155,function()
+  if #referenceSpellPreset~=140 then spellStatus.Caption=&apos;Reference spell preset is malformed.&apos;; return end
+  spellTargetHero=getCurrentHero()
+  if not spellTargetHero then spellStatus.Caption=&apos;Select a hero before loading a preset.&apos;; return end
+  spellMemo.Lines.Text=table.concat(referenceSpellPreset,&apos; &apos;)
+  writeSpellArray(referenceSpellPreset,spellTargetHero)
+end)
+button(toolsTab,&apos;Clear all flags&apos;,188,207,125,function()
+  local values={}
+  for i=1,140 do values[i]=0 end
+  local h=getCurrentHero()
+  if not h then spellStatus.Caption=&apos;Select a hero first.&apos;; return end
+  writeSpellArray(values,h)
+end)
+
+label(heroTab,&apos;SPECIALTY EFFECTS&apos;,680,18,230).Font.Style=&apos;[fsBold]&apos;
+label(heroTab,&apos;Edit effect bytes; hero text stays unchanged.&apos;,680,42,230)
+local specialtyProbeRecord
+local function specialtyRecord()
+  local ok,record=pcall(function() return getAddressList().getMemoryRecordByID(9004) end)
+  return ok and record or nil
+end
+specialtyProbeRecord=specialtyRecord()
+local specialtyProbeToggle=createCheckBox(heroTab)
+specialtyProbeToggle.Caption=&apos;Enable specialty table probe&apos;
+specialtyProbeToggle.Left,specialtyProbeToggle.Top,specialtyProbeToggle.Width=680,67,230
+specialtyProbeToggle.Enabled=specialtyProbeRecord~=nil
+specialtyProbeToggle.Checked=specialtyProbeRecord and specialtyProbeRecord.Active or false
+local specialtyStatus=label(heroTab,&apos;Read a hero before editing.&apos;,680,92,230)
+local specialtyFields={
+  {name=&apos;Kind&apos;,offset=0}, {name=&apos;Source&apos;,offset=4},
+  {name=&apos;Attack bonus&apos;,offset=8}, {name=&apos;Defence bonus&apos;,offset=12},
+  {name=&apos;Damage bonus&apos;,offset=16}, {name=&apos;2nd unit to convert&apos;,offset=20},
+  {name=&apos;Target unit&apos;,offset=24}
+}
+local specialtyEdits={}
+for i,field in ipairs(specialtyFields) do
+  local x=680
+  local y=120+(i-1)*27
+  label(heroTab,field.name,x,y,135)
+  specialtyEdits[i]=edit(heroTab,x+138,y-3,72)
+end
+local specialtySnapshot
+specialtyProbeToggle.OnChange=function(sender)
+  local record=specialtyRecord()
+  if not record then sender.Checked=false; specialtyStatus.Caption=&apos;Specialty probe entry is missing.&apos;; return end
+  local ok=pcall(function() record.Active=sender.Checked end)
+  if not ok or record.Active~=sender.Checked then
+    sender.Checked=not sender.Checked
+    specialtyStatus.Caption=&apos;Could not change the specialty probe. Check the CE error.&apos;
+  else
+    specialtyStatus.Caption=sender.Checked and &apos;Probe on. Read a selected hero.&apos; or &apos;Probe off.&apos;
+  end
+end
+local function readSpecialty()
+  local h=getCurrentHero()
+  local tableBase=readPtr(&apos;Specialties&apos;)
+  if not h then specialtyStatus.Caption=&apos;Select a hero first.&apos;; return false end
+  if not specialtyProbeToggle.Checked or not tableBase or tableBase==0 then
+    specialtyStatus.Caption=&apos;Enable the specialty probe, then read again.&apos;
+    return false
+  end
+  local index=readAt(h+0x1A,&apos;byte&apos;)
+  if index==nil or index&gt;255 then specialtyStatus.Caption=&apos;Could not read the hero specialty index.&apos;; return false end
+  local address=tableBase+index*0x28
+  local values={}
+  for i,field in ipairs(specialtyFields) do
+    values[i]=readAt(address+field.offset,&apos;byte&apos;)
+    if values[i]==nil then specialtyStatus.Caption=&apos;Could not read specialty effect bytes.&apos;; return false end
+    specialtyEdits[i].Text=tostring(values[i])
+  end
+  specialtySnapshot={hero=h,index=index,address=address,values=values}
+  specialtyStatus.Caption=string.format(&apos;Read specialty %d at 0x%X.&apos;,index,address)
+  return true
+end
+button(heroTab,&apos;Read specialty&apos;,680,315,108,readSpecialty)
+button(heroTab,&apos;Apply effects&apos;,794,315,116,function()
+  local snapshot=specialtySnapshot
+  local h=getCurrentHero()
+  local tableBase=readPtr(&apos;Specialties&apos;)
+  local index=h and readAt(h+0x1A,&apos;byte&apos;) or nil
+  if not snapshot or h~=snapshot.hero or index~=snapshot.index or not tableBase or tableBase==0 or tableBase+index*0x28~=snapshot.address then
+    specialtyStatus.Caption=&apos;Hero or specialty changed. Read again before applying.&apos;
+    return
+  end
+  local values={}
+  for i=1,#specialtyFields do
+    values[i]=num(specialtyEdits[i].Text)
+    if not values[i] or values[i]&lt;0 or values[i]&gt;255 then specialtyStatus.Caption=&apos;Each specialty effect must be a byte from 0 to 255.&apos;; return end
+  end
+  local changed={}
+  for i,field in ipairs(specialtyFields) do
+    if values[i]~=snapshot.values[i] then
+      if not writeAt(snapshot.address+field.offset,&apos;byte&apos;,values[i]) then
+        for _,entry in ipairs(changed) do writeAt(snapshot.address+entry.offset,&apos;byte&apos;,entry.value) end
+        specialtyStatus.Caption=&apos;A write failed; previous values were restored where possible.&apos;
+        return
+      end
+      changed[#changed+1]={offset=field.offset,value=snapshot.values[i]}
+    end
+  end
+  readSpecialty()
+  specialtyStatus.Caption=string.format(&apos;Applied %d specialty effect change(s).&apos;,#changed)
+end)
+
+-- Neutral creature pointer capture and disposition editor.
+label(neutralTab,&apos;NEUTRAL CREATURE EDITOR&apos;,20,16,350).Font.Style=&apos;[fsBold]&apos;
+label(neutralTab,&apos;Enable the probe, then right-click a wandering creature to capture its data.&apos;,22,42,690)
+label(neutralTab,&apos;Count range: 1–4095. Disposition: 0 always joins, 10 never joins.&apos;,22,66,690)
+local neutralProbeRecord
+local function neutralRecord()
+  local ok,record=pcall(function() return getAddressList().getMemoryRecordByID(9003) end)
+  return ok and record or nil
+end
+neutralProbeRecord=neutralRecord()
+local neutralProbeToggle=createCheckBox(neutralTab)
+neutralProbeToggle.Caption=&apos;Enable right-click capture&apos;
+neutralProbeToggle.Left,neutralProbeToggle.Top,neutralProbeToggle.Width=22,100,260
+neutralProbeToggle.Enabled=neutralProbeRecord~=nil
+neutralProbeToggle.Checked=neutralProbeRecord and neutralProbeRecord.Active or false
+local neutralStatus=label(neutralTab,&apos;No creature captured.&apos;,300,101,580)
+label(neutralTab,&apos;Creature count&apos;,22,150,140)
+local neutralCountEdit=edit(neutralTab,165,146,100)
+label(neutralTab,&apos;Disposition&apos;,22,190,140)
+local neutralDispositionEdit=edit(neutralTab,165,186,100)
+local neutralSnapshot
+local function readNeutralCreature()
+  local address=readPtr(&apos;neutralCreatureRecordAddr&apos;)
+  local captures=readPtr(&apos;neutralCreatureCaptureCount&apos;)
+  if not neutralProbeToggle.Checked then neutralStatus.Caption=&apos;Enable the capture probe first.&apos;; return false end
+  if not address or address==0 then neutralStatus.Caption=&apos;No capture yet. Right-click a wandering creature.&apos;; return false end
+  local count=readAt(address,&apos;int&apos;)
+  local disposition=readAt(address+8,&apos;byte&apos;)
+  if count==nil or disposition==nil then neutralStatus.Caption=&apos;Captured address could not be read.&apos;; return false end
+  neutralCountEdit.Text=tostring(count)
+  neutralDispositionEdit.Text=tostring(disposition)
+  neutralSnapshot={address=address,count=count,disposition=disposition}
+  neutralStatus.Caption=string.format(&apos;Captured 0x%X (probe hits: %s).&apos;,address,tostring(captures or &apos;?&apos;))
+  return true
+end
+neutralProbeToggle.OnChange=function(sender)
+  local record=neutralRecord()
+  if not record then sender.Checked=false; neutralStatus.Caption=&apos;Neutral capture entry is missing.&apos;; return end
+  local ok=pcall(function() record.Active=sender.Checked end)
+  if not ok or record.Active~=sender.Checked then
+    sender.Checked=not sender.Checked
+    neutralStatus.Caption=&apos;Could not change the neutral creature probe. Check the CE error.&apos;
+  else
+    neutralStatus.Caption=sender.Checked and &apos;Probe on. Right-click a wandering creature.&apos; or &apos;Probe off.&apos;
+  end
+end
+button(neutralTab,&apos;Read captured creature&apos;,22,236,170,readNeutralCreature)
+button(neutralTab,&apos;Apply count / disposition&apos;,205,236,190,function()
+  local snapshot=neutralSnapshot
+  local address=readPtr(&apos;neutralCreatureRecordAddr&apos;)
+  local count=num(neutralCountEdit.Text)
+  local disposition=num(neutralDispositionEdit.Text)
+  if not snapshot or not address or address==0 or address~=snapshot.address then neutralStatus.Caption=&apos;Capture and read a creature again before applying.&apos;; return end
+  if not count or count&lt;1 or count&gt;4095 then neutralStatus.Caption=&apos;Creature count must be from 1 to 4095.&apos;; return end
+  if not disposition or disposition&lt;0 or disposition&gt;10 then neutralStatus.Caption=&apos;Disposition must be from 0 to 10.&apos;; return end
+  local okCount=writeAt(address,&apos;int&apos;,count)
+  local okDisposition=okCount and writeAt(address+8,&apos;byte&apos;,disposition)
+  local actualCount=readAt(address,&apos;int&apos;)
+  local actualDisposition=readAt(address+8,&apos;byte&apos;)
+  if actualCount==nil or actualDisposition==nil then
+    neutralStatus.Caption=&apos;Write attempted, but the captured address could not be read back.&apos;
+    return
+  end
+  neutralCountEdit.Text=tostring(actualCount)
+  neutralDispositionEdit.Text=tostring(actualDisposition)
+  neutralSnapshot={address=address,count=actualCount,disposition=actualDisposition}
+  if actualCount~=count or actualDisposition~=disposition then
+    neutralStatus.Caption=string.format(&apos;Write mismatch at 0x%X: wanted %d / %d; read back %d / %d (CE writes %s / %s).&apos;,address,count,disposition,actualCount,actualDisposition,tostring(okCount),tostring(okDisposition))
+    return
+  end
+  neutralStatus.Caption=string.format(&apos;Memory verified: count %d, disposition %d. Reopen the object to refresh its display.&apos;,actualCount,actualDisposition)
+end)
 
 -- Read-only hero dumps for comparing HotA memory before and after game actions.
 label(dumpTab,&apos;HERO MEMORY DUMP&apos;,20,16,400).Font.Style=&apos;[fsBold]&apos;
-label(dumpTab,&apos;Hero dumps are read-only. For HotA order, enable the table probe and open a normal hero screen first.&apos;,22,40,690)
+label(dumpTab,&apos;Read-only diagnostics. Enable the HotA order probe before reading its runtime list.&apos;,22,40,690)
 local dumpMemo=createMemo(dumpTab)
-dumpMemo.Left,dumpMemo.Top,dumpMemo.Width,dumpMemo.Height=22,68,680,310
+dumpMemo.Left,dumpMemo.Top,dumpMemo.Width,dumpMemo.Height=22,62,680,260
 dumpMemo.ReadOnly=true
 dumpMemo.ScrollBars=ssVertical
 dumpMemo.Lines.Text=&apos;No dump yet.&apos;
-local dumpStatus=label(dumpTab,&apos;Read-only diagnostic.&apos;,400,402,300)
+local dumpStatus=label(dumpTab,&apos;Read-only diagnostic.&apos;,400,365,300)
 local function dumpHeroBytes(startOffset,endOffset)
   local h=readPtr(&apos;pPlayerCurrentHero&apos;)
   if not h or h==0 then
@@ -1486,9 +2216,9 @@ local function dumpHeroBytes(startOffset,endOffset)
   dumpStatus.Caption=string.format(&apos;Read %d bytes from hero at 0x%X.&apos;,endOffset-startOffset+1,h)
   return true
 end
-button(dumpTab,&apos;Dump skill area&apos;,22,397,150,function() dumpHeroBytes(0xB0,0x130) end)
-button(dumpTab,&apos;Dump full hero record&apos;,185,397,190,function() dumpHeroBytes(0x000,0x491) end)
-button(dumpTab,&apos;Dump HotA runtime order&apos;,390,397,190,function()
+button(dumpTab,&apos;Dump skill area&apos;,22,330,150,function() dumpHeroBytes(0xB0,0x130) end)
+button(dumpTab,&apos;Dump full hero record&apos;,185,330,190,function() dumpHeroBytes(0x000,0x491) end)
+button(dumpTab,&apos;Dump HotA runtime order&apos;,390,330,190,function()
   local symbol=symbolAddress(&apos;skillOrderAddr&apos;)
   if not symbol then
     dumpMemo.Lines.Text=&apos;CE cannot resolve skillOrderAddr. Confirm the HotA skill-order probe is checked.&apos;
@@ -1530,7 +2260,7 @@ end)
 -- Inventory tab: one selected slot at a time; table stores 21 8-byte records.
 label(inventoryTab,&apos;ARTIFACT / AUXILIARY SLOT EDITOR&apos;,20,18,400).Font.Style=&apos;[fsBold]&apos;
 label(inventoryTab,&apos;Select one of the 21 records, choose an artifact, then apply.&apos;,22,45,650)
-label(inventoryTab,&apos;Inventory slot (1â€“21)&apos;,22,90,160)
+label(inventoryTab,&apos;Inventory slot (1–21)&apos;,22,90,160)
 local slotCombo=createComboBox(inventoryTab); slotCombo.Left=185; slotCombo.Top=86; slotCombo.Width=150
 for i=1,21 do slotCombo.Items.add(&apos;Slot &apos;..i) end
 slotCombo.ItemIndex=0
@@ -1546,7 +2276,7 @@ button(inventoryTab,&apos;Read selected slot&apos;,22,260,145,function()
   local slot=slotCombo.ItemIndex; if slot&lt;0 then slot=0 end
   local a=h+0x1D4+(slot*8)
   local item=readAt(a,&apos;int&apos;); local paired=readAt(a+4,&apos;int&apos;)
-  currentItem.Caption=string.format(&apos;Slot %d â€” artifact ID: %s | paired value: %s&apos;,slot+1,tostring(item),tostring(paired))
+  currentItem.Caption=string.format(&apos;Slot %d — artifact ID: %s | paired value: %s&apos;,slot+1,tostring(item),tostring(paired))
   pairedEdit.Text=tostring(paired or 0)
   for i,v in ipairs(artifactOptions) do if v[1]==item then artifactCombo.ItemIndex=i-1; break end end
 end)
@@ -1570,6 +2300,7 @@ local function refreshAll()
     for i,d in ipairs(resourceDefs) do local v=readAt(p+d[2],&apos;int&apos;); resourceEdits[i].Text=(v~=nil) and tostring(v) or &apos;&apos; end
   end
   for symbol,c in pairs(checks) do local a=symbolAddress(symbol); if a then c.Checked=(readAt(a,&apos;int&apos;) or 0)~=0 end end
+  refreshBattleSpellToggle()
   if h and h~=0 then
     heroName.Caption=string.format(&apos;Current hero address: 0x%X&apos;,h)
     for i,d in ipairs(heroFields) do local v=readAt(h+d[2],d[3]); heroEdits[i].Text=(v~=nil) and tostring(v) or &apos;&apos; end
@@ -1580,7 +2311,14 @@ end
 
 button(overview,&apos;Refresh all&apos;,350,295,130,refreshAll)
 
-form.OnClose=function() HotATrainerForm=nil; return caFree end
+form.OnClose=function()
+  infiniteSpellTimer.Enabled=false
+  local record=battleSpellRecord()
+  if record then pcall(function() record.Active=false end) end
+  HotASpellResetTimer=nil
+  HotATrainerForm=nil
+  return caFree
+end
 refreshAll()
 form.show()
 </LuaScript>
