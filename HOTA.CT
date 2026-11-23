@@ -1096,6 +1096,24 @@ unregistersymbol(specialtyTablePointerPattern)
 unregistersymbol(Specialties)
 dealloc(newmem)</AssemblerScript>
     </CheatEntry>
+    <CheatEntry>
+      <ID>9005</ID>
+      <Description>"Reveal Puzzle Map (adapted from HoMM3 2.0 HD.ct)"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>{Patch the puzzle-piece lookup so the puzzle map is fully revealed.}
+define(bytes,0F BE 84 30 04 CB 00 00)
+[ENABLE]
+aobscanmodule(puzzleReveal,h3hota HD.exe,0F BE 84 30 04 CB 00 00)
+registersymbol(puzzleReveal)
+assert(puzzleReveal,bytes)
+puzzleReveal:
+  mov eax,30
+  nop 3
+[DISABLE]
+puzzleReveal:
+  db bytes
+unregistersymbol(puzzleReveal)</AssemblerScript>
+    </CheatEntry>
   </CheatEntries>
   <UserdefinedSymbols/>
   <Comments>1:Scroll of Hypnotize
@@ -1366,7 +1384,6 @@ local skillsContainer = tabs.addTab(); skillsContainer.Caption = &apos;Skills&ap
 local skillPages=createPageControl(skillsContainer)
 skillPages.Left,skillPages.Top,skillPages.Width,skillPages.Height=0,0,915,430
 local skillsTab=skillPages.addTab(); skillsTab.Caption=&apos;Mastery&apos;
-local skillAdditionTab=skillPages.addTab(); skillAdditionTab.Caption=&apos;Addition&apos;
 local dumpTab=skillPages.addTab(); dumpTab.Caption=&apos;Memory Dump&apos;
 local spellsTab = tabs.addTab(); spellsTab.Caption = &apos;Spells&apos;
 local battleTab=spellsTab
@@ -1826,24 +1843,28 @@ local secondarySkills={
   &apos;Wisdom&apos;,&apos;Mysticism&apos;,&apos;Luck&apos;,&apos;Ballistics&apos;,&apos;Eagle Eye&apos;,&apos;Necromancy&apos;,&apos;Estates&apos;,
   &apos;Fire Magic&apos;,&apos;Air Magic&apos;,&apos;Water Magic&apos;,&apos;Earth Magic&apos;,&apos;Scholar&apos;,&apos;Tactics&apos;,
   &apos;Artillery&apos;,&apos;Learning&apos;,&apos;Offense&apos;,&apos;Armorer&apos;,&apos;Intelligence&apos;,&apos;Sorcery&apos;,
-  &apos;Resistance&apos;,&apos;First Aid&apos;
+  &apos;Resistance&apos;,&apos;First Aid&apos;,&apos;Interference&apos;,&apos;Runes&apos;
 }
-label(skillsTab,&apos;EDIT MASTERY OF EXISTING SKILLS&apos;,20,16,420).Font.Style=&apos;[fsBold]&apos;
-label(skillsTab,&apos;Read first. This editor changes mastery only; it does not add, remove, or reorder skills.&apos;,22,40,700)
+label(skillsTab,&apos;EDIT SECONDARY SKILL LEVELS&apos;,20,16,500).Font.Style=&apos;[fsBold]&apos;
+label(skillsTab,&apos;Writes only the skill level bytes at hero +0xC9. Skill order and learned count are untouched.&apos;,22,40,800)
 local skillEdits={}
 for i,name in ipairs(secondarySkills) do
-  local col=(i&gt;14) and 1 or 0
-  local row=(i-1)%14
-  local x=22+col*355
-  local y=54+row*20
-  label(skillsTab,name,x,y,112)
-  local level=createComboBox(skillsTab); level.Left=x+115; level.Top=y-3; level.Width=135
+  local col=math.floor((i-1)/10)
+  local row=(i-1)%10
+  local x=22+col*295
+  local y=58+row*26
+  label(skillsTab,name,x,y,115)
+  local level=createComboBox(skillsTab); level.Left=x+118; level.Top=y-3; level.Width=130
   level.Items.add(&apos;Not learned&apos;); level.Items.add(&apos;Basic&apos;); level.Items.add(&apos;Advanced&apos;); level.Items.add(&apos;Expert&apos;)
   level.ItemIndex=0
   level.Enabled=false
   skillEdits[i]=level
 end
-local skillStatus=label(skillsTab,&apos;Read a selected hero before applying. HotA Interference is not mapped here.&apos;,22,382,700)
+local skillStatus=label(skillsTab,&apos;Read a hero before applying level changes.&apos;,22,370,800)
+local onlyLearnedSkills=createCheckBox(skillsTab)
+onlyLearnedSkills.Caption=&apos;Only modify currently learned skills&apos;
+onlyLearnedSkills.Left,onlyLearnedSkills.Top,onlyLearnedSkills.Width,onlyLearnedSkills.Height=22,306,330,24
+onlyLearnedSkills.Checked=false
 local skillSnapshot,skillHero={},nil
 local skillReadValid=false
 local applyMasteryButton
@@ -1856,17 +1877,22 @@ local function readSkills()
     if value==nil or value&gt;3 then valid=false; value=0 end
     values[i]=value
     skillEdits[i].ItemIndex=value
-    skillEdits[i].Enabled=value&gt;0
+    skillEdits[i].Enabled=(not onlyLearnedSkills.Checked) or value&gt;0
   end
   skillSnapshot,skillHero=values,h
   skillReadValid=valid
   applyMasteryButton.Enabled=valid
-  skillStatus.Caption=valid and string.format(&apos;Loaded skill levels for hero 0x%X.&apos;,h) or
-    &apos;Skill data did not match the supported range; applying is blocked.&apos;
+  skillStatus.Caption=valid and string.format(&apos;Loaded %d skill levels for hero 0x%X.&apos;,#secondarySkills,h) or
+    &apos;Skill level bytes did not validate; applying is blocked.&apos;
   return valid
 end
-button(skillsTab,&apos;Read skills&apos;,22,350,125,readSkills)
-applyMasteryButton=button(skillsTab,&apos;Apply mastery changes&apos;,160,350,175,function()
+onlyLearnedSkills.OnChange=function()
+  for i=1,#secondarySkills do
+    skillEdits[i].Enabled=(not onlyLearnedSkills.Checked) or (skillSnapshot[i] or 0)&gt;0
+  end
+end
+button(skillsTab,&apos;Read skill levels&apos;,22,334,145,readSkills)
+local function applySkillLevels()
   local h=readPtr(&apos;pPlayerCurrentHero&apos;)
   if not h or h==0 then skillStatus.Caption=&apos;Select a hero first.&apos;; return end
   if not skillReadValid or h~=skillHero then
@@ -1878,68 +1904,41 @@ applyMasteryButton=button(skillsTab,&apos;Apply mastery changes&apos;,160,350,17
   for i=1,#secondarySkills do
     local before=skillSnapshot[i]
     local after=skillEdits[i].ItemIndex
-    if before==0 and after~=0 then
-      skillStatus.Caption=&apos;Adding skills is disabled; only existing skill mastery can be changed.&apos;
-      return
-    elseif before&gt;0 and (after&lt;1 or after&gt;3) then
-      skillStatus.Caption=&apos;Removing skills is disabled; keep each existing skill at Basic, Advanced, or Expert.&apos;
-      return
-    elseif before&gt;0 and after~=before then
-      changes[#changes+1]={id=i-1,level=after}
+    if after&lt;0 or after&gt;3 then skillStatus.Caption=&apos;Choose Not learned, Basic, Advanced, or Expert.&apos;; return end
+    if (not onlyLearnedSkills.Checked or before&gt;0) and after~=before then
+      changes[#changes+1]={id=i-1,level=after,previous=before}
     end
   end
-  for _,change in ipairs(changes) do
-    if not writeAt(h+0xC9+change.id,&apos;byte&apos;,change.level) then
-      skillStatus.Caption=&apos;A mastery write failed. Refresh the hero before continuing.&apos;
+  for index,change in ipairs(changes) do
+    local address=h+0xC9+change.id
+    local ok=writeAt(address,&apos;byte&apos;,change.level)
+    local actual=readAt(address,&apos;byte&apos;)
+    if not ok or actual~=change.level then
+      for rollback=1,index-1 do
+        local previous=changes[rollback]
+        writeAt(h+0xC9+previous.id,&apos;byte&apos;,previous.previous)
+      end
+      skillStatus.Caption=string.format(&apos;Skill %s did not verify; earlier edits were rolled back.&apos;,secondarySkills[change.id+1])
       skillReadValid=false; applyMasteryButton.Enabled=false
       return
     end
   end
   readSkills()
-  skillStatus.Caption=string.format(&apos;Updated mastery for %d existing skill(s).&apos;,#changes)
-end)
-applyMasteryButton.Enabled=false
-
--- HotA&apos;s original table marks the vanilla +E5 skill order as unused.
--- Direct level/count writes crashed the hero screen, so this tab is read-only
--- until HotA&apos;s runtime skill list behavior is mapped.
-label(skillAdditionTab,&apos;SKILL ADDITION (HOTa MAPPING IN PROGRESS)&apos;,20,16,500).Font.Style=&apos;[fsBold]&apos;
-label(skillAdditionTab,&apos;The HotA table marks the vanilla +0xE5 skill-order bytes as unused. Direct level/count additions crashed the hero screen.&apos;,22,42,700)
-label(skillAdditionTab,&apos;Read current skill data here. Addition stays locked while we inspect HotA\&apos;s runtime skill-order list.&apos;,22,68,700)
-local addSkillCombo=createComboBox(skillAdditionTab)
-addSkillCombo.Left,addSkillCombo.Top,addSkillCombo.Width=22,110,220
-for _,name in ipairs(secondarySkills) do addSkillCombo.Items.add(name) end
-addSkillCombo.ItemIndex=-1
-local additionStatus=label(skillAdditionTab,&apos;No hero read yet.&apos;,260,114,450)
-local additionSnapshot,additionHero,additionCount={},nil,nil
-local additionReadValid=false
-local function readAdditionSkills()
-  local h=readPtr(&apos;pPlayerCurrentHero&apos;)
-  if not h or h==0 then additionStatus.Caption=&apos;Select a hero first.&apos;; return false end
-  local values,valid={},true
-  for i=1,#secondarySkills do
-    local value=readAt(h+0xC9+(i-1),&apos;byte&apos;)
-    if value==nil or value&gt;3 then valid=false end
-    values[i]=value
-  end
-  local count=readAt(h+0x101,&apos;byte&apos;)
-  local learned=0
-  for id,value in ipairs(values) do
-    if value and value&gt;0 then learned=learned+1 end
-  end
-  if count==nil or count&gt;28 or count~=learned then valid=false end
-  additionSnapshot,additionHero,additionCount=values,h,count
-  additionReadValid=valid
-  additionStatus.Caption=valid and string.format(&apos;Hero 0x%X: %d learned skills; levels and count agree.&apos;,h,count) or
-    &apos;Skill levels/count did not validate; addition is unavailable.&apos;
-  return valid
+  skillStatus.Caption=string.format(&apos;Applied %d direct skill-level change(s).&apos;,#changes)
 end
-button(skillAdditionTab,&apos;Read selected hero&apos;,22,158,160,readAdditionSkills)
-local addSkillButton=button(skillAdditionTab,&apos;Add selected skill (paused)&apos;,195,158,190,function()
-  additionStatus.Caption=&apos;No memory written. HotA runtime skill-order state is still being mapped.&apos;
+applyMasteryButton=button(skillsTab,&apos;Apply skill levels&apos;,180,334,155,applySkillLevels)
+applyMasteryButton.Enabled=false
+button(skillsTab,&apos;Make skills Expert (keep Necromancy)&apos;,355,334,260,function()
+  local h=readPtr(&apos;pPlayerCurrentHero&apos;)
+  if not h or h==0 then skillStatus.Caption=&apos;Select a hero first.&apos;; return end
+  if not skillReadValid or h~=skillHero then
+    if not readSkills() then return end
+  end
+  for i=1,#secondarySkills do
+    if i~=13 and (not onlyLearnedSkills.Checked or skillSnapshot[i]&gt;0) then skillEdits[i].ItemIndex=3 end
+  end
+  applySkillLevels()
 end)
-addSkillButton.Enabled=false
-label(skillAdditionTab,&apos;The attached HotA table labels hero +0xE5 as “Skills Order (Useless in HOTA)”. It also has a separate HotA runtime skill-order probe; use that before any more addition writes.&apos;,22,220,690)
 
 -- Hero spell-access array.
 label(toolsTab,&apos;HERO SPELL ACCESS&apos;,20,14,420).Font.Style=&apos;[fsBold]&apos;
@@ -2187,7 +2186,69 @@ button(neutralTab,&apos;Apply count / disposition&apos;,205,236,190,function()
   neutralStatus.Caption=string.format(&apos;Memory verified: count %d, disposition %d. Reopen the object to refresh its display.&apos;,actualCount,actualDisposition)
 end)
 
--- Read-only hero dumps for comparing HotA memory before and after game actions.
+-- Puzzle map reveal patch adapted from HoMM3 2.0 HD.ct.
+label(neutralTab,&apos;MAP UNLOCKS&apos;,20,290,350).Font.Style=&apos;[fsBold]&apos;
+label(neutralTab,&apos;Enable the patch to reveal the puzzle map. This does not type a cheat code.&apos;,22,316,760)
+local function puzzleRevealRecord()
+  local ok,record=pcall(function() return getAddressList().getMemoryRecordByID(9005) end)
+  return ok and record or nil
+end
+local puzzleStatus=label(neutralTab,&apos;Puzzle map patch is off.&apos;,300,350,455)
+local puzzleToggleUpdating=false
+local puzzleToggle=createCheckBox(neutralTab)
+puzzleToggle.Caption=&apos;Reveal puzzle map&apos;
+puzzleToggle.Left,puzzleToggle.Top,puzzleToggle.Width,puzzleToggle.Height=22,346,240,24
+local function refreshPuzzleStatus()
+  local record=puzzleRevealRecord()
+  if not record then
+    puzzleToggleUpdating=true; puzzleToggle.Checked=false; puzzleToggle.Enabled=false; puzzleToggleUpdating=false
+    puzzleStatus.Caption=&apos;Puzzle map patch entry is missing.&apos;
+    return
+  end
+  local active=record.Active
+  puzzleToggleUpdating=true
+  puzzleToggle.Enabled=true
+  puzzleToggle.Checked=active
+  puzzleToggleUpdating=false
+  if not active then puzzleStatus.Caption=&apos;Puzzle map patch is off.&apos;; return end
+  local address=symbolAddress(&apos;puzzleReveal&apos;)
+  if not address or address==0 then
+    puzzleStatus.Caption=&apos;Entry is active, but puzzleReveal is missing. The AOB signature did not install.&apos;
+    return
+  end
+  local expected={0xB8,0x1E,0x00,0x00,0x00,0x90,0x90,0x90}
+  for i,value in ipairs(expected) do
+    local actual=readAt(address+i-1,&apos;byte&apos;)
+    if actual~=value then
+      puzzleStatus.Caption=string.format(&apos;Patch at 0x%X has unexpected byte +%X: read %s, expected %02X.&apos;,address,i-1,tostring(actual),value)
+      return
+    end
+  end
+  puzzleStatus.Caption=string.format(&apos;Patch bytes verified at 0x%X. Open the puzzle map to check the result.&apos;,address)
+end
+puzzleToggle.OnChange=function(sender)
+  if puzzleToggleUpdating then return end
+  local record=puzzleRevealRecord()
+  if not record then refreshPuzzleStatus(); return end
+  local requested=sender.Checked
+  local ok,err=pcall(function() record.Active=requested end)
+  local active=false
+  pcall(function() active=record.Active end)
+  puzzleToggleUpdating=true
+  sender.Checked=active
+  puzzleToggleUpdating=false
+  if not ok then
+    puzzleStatus.Caption=&apos;CE rejected activation: &apos;..tostring(err)..&apos; (HotA AOB may not match).&apos;
+    return
+  end
+  if active~=requested then
+    puzzleStatus.Caption=requested and &apos;CE left the patch off. The HoMM3 2.0 signature likely does not match this HotA executable.&apos; or &apos;Puzzle map patch is off.&apos;
+    return
+  end
+  refreshPuzzleStatus()
+end
+button(neutralTab,&apos;Check puzzle patch&apos;,760,346,135,refreshPuzzleStatus)
+refreshPuzzleStatus()-- Read-only hero dumps for comparing HotA memory before and after game actions.
 label(dumpTab,&apos;HERO MEMORY DUMP&apos;,20,16,400).Font.Style=&apos;[fsBold]&apos;
 label(dumpTab,&apos;Read-only diagnostics. Enable the HotA order probe before reading its runtime list.&apos;,22,40,690)
 local dumpMemo=createMemo(dumpTab)
