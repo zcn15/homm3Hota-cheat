@@ -65,3 +65,7 @@ The UI is organized into these categories:
 - `HoMM3 2.0 HD.ct`: HD Edition reference table; some addresses and code patches are for that executable and may not work in HotA.
 
 The reference tables and code are discussed in the [Fearless Revolution thread](https://fearlessrevolution.com/viewtopic.php?f=4&t=13497). The main table targets the GOG Complete / HD Mod / HotA 1.8.1 setup; verify version-specific patches before using them.
+
+## Contributors
+
+The reference tables and contributions are by **Csimbi**, **gibberishh**, and **CannonFodder**. Their work is credited in the [Fearless Revolution thread](https://fearlessrevolution.com/viewtopic.php?f=4&t=13497).
